@@ -15,9 +15,10 @@ class Color:
 class Game:
 
     def __init__(self):
-        # Window display dimensions
+        # Window display config
         self.WIDTH = 800
         self.HEIGHT = 400
+        self.background_color = Color.WHITE
 
         # Initilise the display surface
         self.surface = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
@@ -28,6 +29,27 @@ class Game:
         self.has_crashed = False
 
         pygame.init()
+
+    def on_event(self, event):
+        print(event)
+        if event.type == pygame.QUIT:
+            self.has_crashed = True
+
+    def run(self):
+        car = Car(game=self)
+
+        while not self.has_crashed:
+            for event in pygame.event.get():
+                self.on_event(event)
+
+            # Reset the surface
+            self.surface.fill(self.background_color)
+
+            # Re-draw the objects
+            car.draw()
+
+            pygame.display.update()
+            self.clock.tick(60)
 
 
 class Car:
@@ -64,20 +86,6 @@ class Car:
 
 
 game = Game()
-car = Car(game)
-
-while not game.has_crashed:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            crashed = True
-
-        print(event)
-
-    game.surface.fill(Color.WHITE)
-    car.draw()
-
-    pygame.display.update()
-    game.clock.tick(60)
-
+game.run()
 pygame.quit()
 quit()
