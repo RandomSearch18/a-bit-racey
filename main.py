@@ -5,6 +5,7 @@ from pathlib import Path
 
 class Asset:
     CAR_IMAGE = pygame.image.load(Path("assets", "racecar.png"))
+    CAR_IMAGE_ALT = pygame.image.load(Path("assets", "racecar-alt.png"))
 
 
 class Color:
@@ -12,13 +13,24 @@ class Color:
     WHITE = (255, 255, 255)
 
 
+class DefaultTheme:
+    ALTERNATE_TEXTURES = False
+    BACKGROUND = Color.WHITE
+
+
+class NightTheme(DefaultTheme):
+    ALTERNATE_TEXTURES = True
+    BACKGROUND = Color.BLACK
+
+
 class Game:
 
-    def __init__(self):
+    def __init__(self, theme: type[DefaultTheme]):
         # Window display config
+        self.theme = theme
         self.WIDTH = 800
         self.HEIGHT = 400
-        self.background_color = Color.WHITE
+        self.background_color = self.theme.BACKGROUND
 
         # Initilise the display surface
         self.surface = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
@@ -71,9 +83,12 @@ class Car:
 
         return screen_height - (car_height + padding)
 
+    def get_texture(self):
+        return Asset.CAR_IMAGE_ALT if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE
+
     def __init__(self, game: Game):
         self.game = game
-        self.texture = Asset.CAR_IMAGE
+        self.texture = self.get_texture()
 
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
@@ -85,7 +100,7 @@ class Car:
         self.game.surface.blit(self.texture, (self.x, self.y))
 
 
-game = Game()
+game = Game(theme=DefaultTheme)
 game.run()
 pygame.quit()
 quit()
