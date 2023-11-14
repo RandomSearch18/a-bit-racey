@@ -40,7 +40,8 @@ class Car:
 
     def calculate_starting_y(self):
         screen_height = self.game.WIDTH
-        return math.floor(screen_height / 2)
+        center_position = math.floor(screen_height / 2)
+        return center_position - (self.texture.get_width() / 2)
 
     def __init__(self, game: Game):
         self.game = game
@@ -48,6 +49,7 @@ class Car:
 
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
+        print(self.x, self.y)
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
