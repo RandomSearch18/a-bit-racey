@@ -33,15 +33,21 @@ class Game:
 class Car:
 
     def calculate_starting_x(self):
-        car_height = self.texture.get_height()
-        screen_height = self.game.HEIGHT
+        screen_width = self.game.WIDTH
 
-        return screen_height - car_height
+        # Calculate where the centre of the car should go, and thus where the left edge of the car should be
+        center_position = screen_width / 2
+        left_edge_position = center_position - (self.texture.get_width() / 2)
+
+        # Don't place the car in-between pixels
+        return math.floor(left_edge_position)
 
     def calculate_starting_y(self):
-        screen_height = self.game.WIDTH
-        center_position = math.floor(screen_height / 2)
-        return center_position - (self.texture.get_width() / 2)
+        car_height = self.texture.get_height()
+        screen_height = self.game.HEIGHT
+        padding = 5  # 5px of bottom padding
+
+        return screen_height - (car_height + padding)
 
     def __init__(self, game: Game):
         self.game = game
@@ -50,6 +56,8 @@ class Car:
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
         print(self.x, self.y)
+        print("Width height", self.texture.get_width(),
+              self.texture.get_height())
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
