@@ -11,6 +11,8 @@ class Asset:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
+    # From color palette at https://colorcodes.io/gray/asphalt-gray-color-codes/
+    ASPHALT = (38, 40, 51)
 
 
 class DefaultTheme:
@@ -19,8 +21,8 @@ class DefaultTheme:
 
 
 class NightTheme(DefaultTheme):
-    ALTERNATE_TEXTURES = True
-    BACKGROUND = Color.BLACK
+    ALTERNATE_TEXTURES = False
+    BACKGROUND = Color.ASPHALT
 
 
 class Game:
@@ -106,7 +108,9 @@ class Car:
         self.game.surface.blit(self.texture, (self.x, self.y))
 
 
-game = Game(theme=DefaultTheme)
+game = Game(theme=NightTheme)
 game.run()
+
+# Game has finished
 pygame.quit()
 quit()
