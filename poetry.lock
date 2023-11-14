@@ -1,0 +1,24 @@
+[[package]]
+name = "dearpygui"
+version = "1.9.1"
+description = "DearPyGui: A simple Python GUI Toolkit"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
+name = "pygame"
+version = "2.5.0"
+description = "Python Game Development"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[metadata]
+lock-version = "1.1"
+python-versions = ">=3.10.0"
+content-hash = "5e87325b3835bfcefdcd3a01afb512f9063d24ed31ebd7620dcf328c01c74d86"
+
+[metadata.files]
+dearpygui = []
+pygame = []
