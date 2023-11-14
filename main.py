@@ -28,12 +28,10 @@ class Game:
     def __init__(self, theme: type[DefaultTheme]):
         # Window display config
         self.theme = theme
-        self.WIDTH = 800
-        self.HEIGHT = 400
         self.background_color = self.theme.BACKGROUND
 
         # Initilise the display surface
-        self.surface = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+        self.surface = pygame.display.set_mode((300, 300), pygame.RESIZABLE)
         pygame.display.set_caption('A bit Racey')
 
         # Initialise other game components
@@ -41,6 +39,14 @@ class Game:
         self.has_crashed = False
 
         pygame.init()
+
+    def width(self) -> int:
+        """Returns the width of the window, in pixels"""
+        return self.surface.get_width()
+
+    def height(self) -> int:
+        """Returns the height of the window, in pixels"""
+        return self.surface.get_height()
 
     def on_event(self, event):
         print(event)
@@ -67,10 +73,10 @@ class Game:
 class Car:
 
     def calculate_starting_x(self):
-        screen_width = self.game.WIDTH
+        window_width = self.game.height()
 
         # Calculate where the centre of the car should go, and thus where the left edge of the car should be
-        center_position = screen_width / 2
+        center_position = window_width / 2
         left_edge_position = center_position - (self.texture.get_width() / 2)
 
         # Don't place the car in-between pixels
@@ -78,7 +84,7 @@ class Car:
 
     def calculate_starting_y(self):
         car_height = self.texture.get_height()
-        screen_height = self.game.HEIGHT
+        screen_height = self.game.height()
         padding = 5  # 5px of bottom padding
 
         return screen_height - (car_height + padding)
