@@ -1,3 +1,4 @@
+from typing import Tuple
 import pygame
 import math
 from pathlib import Path
@@ -60,6 +61,7 @@ class Game:
 
         while not self.has_crashed:
             for event in pygame.event.get():
+                print(car.calculate_position_percentage())
                 self.on_event(event)
 
             # Reset the surface
@@ -74,18 +76,24 @@ class Game:
 
 class Car:
 
+    def height(self) -> int:
+        return self.texture.get_height()
+
+    def width(self) -> int:
+        return self.texture.get_width()
+
     def calculate_starting_x(self):
         window_width = self.game.height()
 
         # Calculate where the centre of the car should go, and thus where the left edge of the car should be
         center_position = window_width / 2
-        left_edge_position = center_position - (self.texture.get_width() / 2)
+        left_edge_position = center_position - (self.width() / 2)
 
         # Don't place the car in-between pixels
         return math.floor(left_edge_position)
 
     def calculate_starting_y(self):
-        car_height = self.texture.get_height()
+        car_height = self.height()
         screen_height = self.game.height()
         padding = 5  # 5px of bottom padding
 
@@ -101,8 +109,32 @@ class Car:
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
         print(self.x, self.y)
-        print("Width height", self.texture.get_width(),
-              self.texture.get_height())
+        print("Width height", self.width(), self.height())
+
+    def calculate_center_bounds(self) -> Tuple[float, float, float, float]:
+        """Calculates the bounding box of posible positions for the centre point of this object"""
+        x_padding = self.width() / 2
+        y_padding = self.height() / 2
+
+        x1 = 0 + x_padding
+        x2 = self.game.width() - x_padding
+        y1 = 0 + y_padding
+        y2 = self.game.width() - y_padding
+
+        return (x1, y1, x2, y2)
+
+    def calculate_position_percentage(self) -> Tuple[float, float]:
+        """Calculates the position of the center of the object, returning coordinates in the form (x, y)
+
+        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the window size
+        """
+        center_x = self.x + self.width() / 2
+        percentage_x = center_x / self.game.width()
+
+        center_y = self.y + self.height() / 2
+        percentage_y = center_y / self.game.height()
+
+        return (percentage_x, percentage_y)
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
