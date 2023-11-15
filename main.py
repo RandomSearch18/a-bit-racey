@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Literal, Tuple
 import pygame
 import math
 from pathlib import Path
@@ -42,6 +42,16 @@ class Game:
         self.has_crashed = False
         self.objects = []
         self.old_window_dimensions = (self.width(), self.height())
+        self.key_action_callbacks = {}
+
+        # Set up default keybinds
+        self.keybinds = {
+            pygame.K_LEFT: "move.left",
+            pygame.K_RIGHT: "move.right"
+        }
+
+        for action in self.keybinds.values():
+            self.key_action_callbacks[action] = {"up": None, "down": None}
 
         pygame.init()
 
@@ -62,6 +72,35 @@ class Game:
                 event.old_dimensions = self.old_window_dimensions
                 object.on_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
+        elif event.type == pygame.KEYDOWN:
+            if event.key in self.keybinds:
+                action = self.keybinds[event.key]
+                self.trigger_key_action(action, "down")
+        elif event.type == pygame.KEYUP:
+            if event.key in self.keybinds:
+                action = self.keybinds[event.key]
+                self.trigger_key_action(action, "up")
+
+    def trigger_key_action(self, action: str, event_type: Literal["up",
+                                                                  "down"]):
+        action_callback = self.key_action_callbacks[action][event_type]
+        if action_callback is None:
+            return
+        action_callback()
+
+    def on_key_up(self, action: str):
+
+        def decorator(callback):
+            self.key_action_callbacks[action]["up"] = callback
+
+        return decorator
+
+    def on_key_down(self, action):
+
+        def decorator(callback):
+            self.key_action_callbacks[action]["down"] = callback
+
+        return decorator
 
     def run(self):
         car = Car(game=self)
@@ -117,6 +156,10 @@ class Car:
         self.y = self.calculate_starting_y()
         print(self.x, self.y)
         print("Width height", self.width(), self.height())
+
+        @game.on_key_down("move.left")
+        def move_left():
+            print("LEFT")
 
     def calculate_center_bounds(
             self, parent_width: float,
