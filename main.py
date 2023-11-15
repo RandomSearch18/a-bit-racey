@@ -151,12 +151,36 @@ class Car:
 
         return center_percentage_x, center_percentage_y
 
+    def map_relative_position_to_box(
+        self, position_percentage: Tuple[float, float],
+        new_center_point_bounds: Tuple[float, float, float, float]
+    ) -> Tuple[float, float]:
+        """Calculates the new center point based on the saved percentage and the new bounding box dimensions"""
+        x1, y1, x2, y2 = new_center_point_bounds
+
+        # Calculate the new center based on the percentage and the new bounding box
+        new_center_x = x1 + (x2 - x1) * position_percentage[0]
+        new_center_y = y1 + (y2 - y1) * position_percentage[1]
+
+        return new_center_x, new_center_y
+
     def on_window_resize(self, event):
         old_center_point_bounds = self.calculate_center_bounds(
             *event.old_dimensions)
         position_percentage = self.calculate_position_percentage(
             old_center_point_bounds)
         print("Was at", position_percentage)
+
+        # Update object's position to be the in the same place relative to the window size
+        new_center_point_bounds = self.calculate_center_bounds(
+            event.w, event.h)
+        new_center = self.map_relative_position_to_box(
+            position_percentage, new_center_point_bounds)
+        self.x = new_center[0] - self.width() / 2
+        self.y = new_center[1] - self.height() / 2
+
+        # Redraw the object
+        self.draw()
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
