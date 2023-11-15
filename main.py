@@ -40,6 +40,8 @@ class Game:
         # Initialise other game components
         self.clock = pygame.time.Clock()
         self.has_crashed = False
+        self.objects = []
+        self.old_window_dimensions = (self.width(), self.height())
 
         pygame.init()
 
@@ -55,13 +57,18 @@ class Game:
         print(event)
         if event.type == pygame.QUIT:
             self.has_crashed = True
+        elif event.type == pygame.VIDEORESIZE:
+            for object in self.objects:
+                event.old_dimensions = self.old_window_dimensions
+                object.on_window_resize(event)
+            self.old_window_dimensions = (self.width(), self.height())
 
     def run(self):
         car = Car(game=self)
+        self.objects.append(car)
 
         while not self.has_crashed:
             for event in pygame.event.get():
-                print(car.calculate_position_percentage())
                 self.on_event(event)
 
             # Reset the surface
@@ -111,30 +118,45 @@ class Car:
         print(self.x, self.y)
         print("Width height", self.width(), self.height())
 
-    def calculate_center_bounds(self) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box of posible positions for the centre point of this object"""
+    def calculate_center_bounds(
+            self, parent_width: float,
+            parent_height: float) -> Tuple[float, float, float, float]:
+        """Calculates the bounding box of possible positions for the center point of this object"""
         x_padding = self.width() / 2
         y_padding = self.height() / 2
 
         x1 = 0 + x_padding
-        x2 = self.game.width() - x_padding
+        x2 = parent_width - x_padding
         y1 = 0 + y_padding
-        y2 = self.game.width() - y_padding
+        y2 = parent_height - y_padding
 
-        return (x1, y1, x2, y2)
+        return x1, y1, x2, y2
 
-    def calculate_position_percentage(self) -> Tuple[float, float]:
+    def calculate_position_percentage(
+            self, bounds: Tuple[float, float, float,
+                                float]) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
 
-        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the window size
+        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
+        x1, y1, x2, y2 = bounds
+
+        # Calculate the center of the object
         center_x = self.x + self.width() / 2
-        percentage_x = center_x / self.game.width()
-
         center_y = self.y + self.height() / 2
-        percentage_y = center_y / self.game.height()
 
-        return (percentage_x, percentage_y)
+        # Calculate the percentage position of the center relative to the bounding box
+        center_percentage_x = (center_x - x1) / (x2 - x1)
+        center_percentage_y = (center_y - y1) / (y2 - y1)
+
+        return center_percentage_x, center_percentage_y
+
+    def on_window_resize(self, event):
+        old_center_point_bounds = self.calculate_center_bounds(
+            *event.old_dimensions)
+        position_percentage = self.calculate_position_percentage(
+            old_center_point_bounds)
+        print("Was at", position_percentage)
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
