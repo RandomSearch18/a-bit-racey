@@ -43,15 +43,13 @@ class Game:
         self.objects = []
         self.old_window_dimensions = (self.width(), self.height())
         self.key_action_callbacks = {}
+        self.key_up_callbacks = {}
 
         # Set up default keybinds
         self.keybinds = {
             pygame.K_LEFT: "move.left",
             pygame.K_RIGHT: "move.right"
         }
-
-        for action in self.keybinds.values():
-            self.key_action_callbacks[action] = {"up": None, "down": None}
 
         pygame.init()
 
@@ -75,30 +73,23 @@ class Game:
         elif event.type == pygame.KEYDOWN:
             if event.key in self.keybinds:
                 action = self.keybinds[event.key]
-                self.trigger_key_action(action, "down")
+                self.trigger_key_action(action, event)
         elif event.type == pygame.KEYUP:
-            if event.key in self.keybinds:
-                action = self.keybinds[event.key]
-                self.trigger_key_action(action, "up")
+            if event.key in self.key_up_callbacks:
+                callback = self.key_up_callbacks[event.key]
+                callback()
 
-    def trigger_key_action(self, action: str, event_type: Literal["up",
-                                                                  "down"]):
-        action_callback = self.key_action_callbacks[action][event_type]
-        if action_callback is None:
+    def trigger_key_action(self, action: str, event: pygame.event.Event):
+        if action not in self.key_action_callbacks:
             return
-        action_callback()
+        action_callback = self.key_action_callbacks[action]
+        on_key_up = action_callback(event)
+        self.key_up_callbacks[event.key] = lambda: on_key_up(event)
 
-    def on_key_up(self, action: str):
-
-        def decorator(callback):
-            self.key_action_callbacks[action]["up"] = callback
-
-        return decorator
-
-    def on_key_down(self, action):
+    def on_key_action(self, action: str):
 
         def decorator(callback):
-            self.key_action_callbacks[action]["down"] = callback
+            self.key_action_callbacks[action] = callback
 
         return decorator
 
@@ -154,12 +145,21 @@ class Car:
 
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
-        print(self.x, self.y)
-        print("Width height", self.width(), self.height())
 
-        @game.on_key_down("move.left")
-        def move_left():
-            print("LEFT")
+        # Velocity values, measured in pixels/tick
+        self.velocity_x = 0
+        self.velocity_y = 0
+
+        # Bind movement callbacks to the appropiate key actions
+        @game.on_key_action("move.left")
+        def start_moving_left(event):
+            self.velocity_x = -5
+            print("left!!!")
+
+            return lambda _: print("Unleft!!")
+        # @game.on_key_action("move.left")
+        # def stop_moving_left():
+        #     self.velocity_x = 0
 
     def calculate_center_bounds(
             self, parent_width: float,
