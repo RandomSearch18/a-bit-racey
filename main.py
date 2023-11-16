@@ -62,7 +62,7 @@ class Game:
         return self.surface.get_height()
 
     def on_event(self, event):
-        print(event)
+        #print(event)
         if event.type == pygame.QUIT:
             self.has_crashed = True
         elif event.type == pygame.VIDEORESIZE:
@@ -104,7 +104,8 @@ class Game:
             # Reset the surface
             self.surface.fill(self.background_color)
 
-            # Re-draw the objects
+            # Update the objects
+            car.tick()
             car.draw()
 
             pygame.display.update()
@@ -153,10 +154,26 @@ class Car:
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
         def start_moving_left(event):
-            self.velocity_x = -5
-            print("left!!!")
 
-            return lambda _: print("Unleft!!")
+            def undo(event):
+                self.velocity_x = 0
+                print("Left stopped")
+
+            self.velocity_x = -5
+            print("Left started")
+            return undo
+
+        @game.on_key_action("move.right")
+        def start_moving_right(event):
+
+            def undo(event):
+                self.velocity_x = 0
+                print("Right stopped")
+
+            self.velocity_x = 5
+            print("Right started")
+            return undo
+
         # @game.on_key_action("move.left")
         # def stop_moving_left():
         #     self.velocity_x = 0
@@ -224,6 +241,13 @@ class Car:
 
         # Redraw the object
         self.draw()
+
+    def tick(self):
+        x_movement = self.velocity_x
+        y_movement = self.velocity_y
+
+        self.x += x_movement
+        self.y += y_movement
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
