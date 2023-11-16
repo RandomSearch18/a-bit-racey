@@ -39,7 +39,7 @@ class Game:
 
         # Initialise other game components
         self.clock = pygame.time.Clock()
-        self.has_crashed = False
+        self.should_exit = False
         self.objects = []
         self.old_window_dimensions = (self.width(), self.height())
         self.key_action_callbacks = {}
@@ -60,11 +60,20 @@ class Game:
     def height(self) -> int:
         """Returns the height of the window, in pixels"""
         return self.surface.get_height()
+    
+    def window_rect(self) -> Tuple[float, float, float, float]:
+        """Calculates the bounding box that represents the size of the window"""
+        x1 = 0
+        y1 = 0
+        x2 = self.x + self.width()
+        y2 = self.y + self.height()
+
+        return x1, y1, x2, y2
 
     def on_event(self, event):
         #print(event)
         if event.type == pygame.QUIT:
-            self.has_crashed = True
+            self.should_exit = True
         elif event.type == pygame.VIDEORESIZE:
             for object in self.objects:
                 event.old_dimensions = self.old_window_dimensions
@@ -97,7 +106,7 @@ class Game:
         car = Car(game=self)
         self.objects.append(car)
 
-        while not self.has_crashed:
+        while not self.should_exit:
             for event in pygame.event.get():
                 self.on_event(event)
 
@@ -191,6 +200,23 @@ class Car:
         y2 = parent_height - y_padding
 
         return x1, y1, x2, y2
+    
+    def collision_box(self) -> Tuple[float, float, float, float]:
+        """Calculates the visual bounding box (i.e. collision box) for this object"""
+        x1 = self.x
+        y1 = self.y
+        x2 = self.x + self.width()
+        y2 = self.y + self.height()
+
+        return x1, y1, x2, y2
+
+    def center_point(self) -> Tuple[float, float]:
+        """Calculates the coordinates of the center point of the object (not rounded)"""
+        center_x = self.x + self.width() / 2
+        center_y = self.y + self.height() / 2
+
+        return (center_x, center_y)
+
 
     def calculate_position_percentage(
             self, bounds: Tuple[float, float, float,
@@ -200,10 +226,7 @@ class Car:
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
         x1, y1, x2, y2 = bounds
-
-        # Calculate the center of the object
-        center_x = self.x + self.width() / 2
-        center_y = self.y + self.height() / 2
+        center_x, center_y = self.center_point()
 
         # Calculate the percentage position of the center relative to the bounding box
         center_percentage_x = (center_x - x1) / (x2 - x1)
@@ -223,6 +246,14 @@ class Car:
         new_center_y = y1 + (y2 - y1) * position_percentage[1]
 
         return new_center_x, new_center_y
+
+    def is_within_window(self):
+        our_collision_box = self.collision_box()
+        window_bounding_box = self.game.window_rect()
+
+        
+
+
 
     def on_window_resize(self, event):
         old_center_point_bounds = self.calculate_center_bounds(
