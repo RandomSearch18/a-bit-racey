@@ -1,5 +1,6 @@
 from typing import Literal, Tuple
 import pygame
+from pygame import Rect
 import math
 from pathlib import Path
 
@@ -61,14 +62,9 @@ class Game:
         """Returns the height of the window, in pixels"""
         return self.surface.get_height()
     
-    def window_rect(self) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box that represents the size of the window"""
-        x1 = 0
-        y1 = 0
-        x2 = self.x + self.width()
-        y2 = self.y + self.height()
-
-        return x1, y1, x2, y2
+    def window_rect(self) -> Rect:
+        """Calculates the rectangle that represents the size of the window"""
+        return Rect(0, 0, self.width(), self.height())
 
     def on_event(self, event):
         #print(event)
@@ -189,28 +185,25 @@ class Car:
 
     def calculate_center_bounds(
             self, parent_width: float,
-            parent_height: float) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box of possible positions for the center point of this object"""
+            parent_height: float) -> Rect:
+        """Returns a rectangle containing possible positions for the center point of this object"""
         x_padding = self.width() / 2
         y_padding = self.height() / 2
 
-        x1 = 0 + x_padding
-        x2 = parent_width - x_padding
-        y1 = 0 + y_padding
-        y2 = parent_height - y_padding
+        start_x = 0 + x_padding
+        start_y = 0 + y_padding
+        width = parent_width - x_padding - start_x
+        height = parent_height - y_padding - start_y
 
-        return x1, y1, x2, y2
+        return Rect(start_x, start_y, width, height)
     
-    def collision_box(self) -> Tuple[float, float, float, float]:
-        """Calculates the visual bounding box (i.e. collision box) for this object"""
-        x1 = self.x
-        y1 = self.y
-        x2 = self.x + self.width()
-        y2 = self.y + self.height()
-
-        return x1, y1, x2, y2
+    def collision_rect(self) -> Rect:
+        """Calculates a rectangle representing the area taken up by this object (i.e. its collision box)"""
+        print(Rect(self.x, self.y, self.width(), self.height()))
+        return Rect(self.x, self.y, self.width(), self.height())
 
     def center_point(self) -> Tuple[float, float]:
+        raise RuntimeError("depricated")
         """Calculates the coordinates of the center point of the object (not rounded)"""
         center_x = self.x + self.width() / 2
         center_y = self.y + self.height() / 2
@@ -219,24 +212,28 @@ class Car:
 
 
     def calculate_position_percentage(
-            self, bounds: Tuple[float, float, float,
-                                float]) -> Tuple[float, float]:
+            self, rect: Rect) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
 
-        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
+        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided rectangle
         """
-        x1, y1, x2, y2 = bounds
-        center_x, center_y = self.center_point()
+        x1, y1, x2, y2 = rect.topleft[0], rect.topleft[1], rect.bottomright[0], rect.bottomright[1] # FIXME
+        our_x, our_y = self.collision_rect().center
 
-        # Calculate the percentage position of the center relative to the bounding box
-        center_percentage_x = (center_x - x1) / (x2 - x1)
-        center_percentage_y = (center_y - y1) / (y2 - y1)
+        # Calculate the relative position of the center of this object
+        our_percentage_x = (our_x - rect.left) / (rect.right - rect.left)
+        our_percentage_y = (our_y - rect.top) / (rect.bottom - rect.top)
+        center_percentage_x = (our_x - x1) / (x2 - x1)
+        center_percentage_y = (our_y - y1) / (y2 - y1)
 
+
+        print(center_percentage_x, center_percentage_y)
+        print(our_percentage_x, our_percentage_y)
         return center_percentage_x, center_percentage_y
 
     def map_relative_position_to_box(
         self, position_percentage: Tuple[float, float],
-        new_center_point_bounds: Tuple[float, float, float, float]
+        new_center_point_bounds: Rect
     ) -> Tuple[float, float]:
         """Calculates the new center point based on the saved percentage and the new bounding box dimensions"""
         x1, y1, x2, y2 = new_center_point_bounds
@@ -248,7 +245,7 @@ class Car:
         return new_center_x, new_center_y
 
     def is_within_window(self):
-        our_collision_box = self.collision_box()
+        our_collision_box = self.collision_rect()
         window_bounding_box = self.game.window_rect()
 
         
@@ -260,6 +257,7 @@ class Car:
             *event.old_dimensions)
         position_percentage = self.calculate_position_percentage(
             old_center_point_bounds)
+        print("Old center point bounds", old_center_point_bounds)
         print("Was at", position_percentage)
 
         # Update object's position to be the in the same place relative to the window size
