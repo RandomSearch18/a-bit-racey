@@ -247,6 +247,18 @@ class Car:
         our_collision_box = self.collision_box()
         window_bounding_box = self.game.window_rect()
 
+        is_within_x = (
+            our_collision_box[0] >= window_bounding_box[0]
+            and our_collision_box[2] <= window_bounding_box[2]
+        )
+
+        is_within_y = (
+            our_collision_box[1] >= window_bounding_box[1]
+            and our_collision_box[3] <= window_bounding_box[3]
+        )
+
+        return is_within_x and is_within_y
+
     def on_window_resize(self, event):
         old_center_point_bounds = self.calculate_center_bounds(*event.old_dimensions)
         position_percentage = self.calculate_position_percentage(
