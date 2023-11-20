@@ -61,8 +61,8 @@ class Game:
         """Calculates the bounding box that represents the size of the window"""
         x1 = 0
         y1 = 0
-        x2 = self.x + self.width()
-        y2 = self.y + self.height()
+        x2 = self.width()
+        y2 = self.height()
 
         return x1, y1, x2, y2
 
@@ -283,6 +283,9 @@ class Car:
 
         self.x += x_movement
         self.y += y_movement
+
+        if not self.is_within_window():
+            self.game.should_exit = True
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
