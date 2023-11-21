@@ -152,13 +152,64 @@ class Game:
             self.clock.tick(60)
 
 
-class Car:
+class Texture:
 
-    def height(self) -> int:
-        return self.texture.get_height()
+    def __init__(self, width, height):
+        self.base_width = width
+        self.base_height = height
 
-    def width(self) -> int:
-        return self.texture.get_width()
+    def height(self) -> float:
+        return self.base_height
+
+    def width(self) -> float:
+        return self.base_width
+
+    def draw_at(start_x, start_y):
+        pass
+
+
+class PlainColorTexture(Texture):
+
+    def __init__(self, game: Game, color: Tuple[float, float, float], width,
+                 height):
+        self.game = game
+        self.color = color
+        super().__init__(width, height)
+
+    def draw_at(self, start_x, start_y):
+        pygame.draw.rect(
+            self.game.surface, self.color,
+            [start_x, start_y, self.width(),
+             self.height()])
+
+
+class ImageTexture(Texture):
+
+    def __init__(self, game, image):
+        self.game = game
+        self.image = image
+
+        width = self.image.get_width()
+        height = self.image.get_height()
+        super().__init__(width, height)
+
+    def draw_at(self, start_x, start_y):
+        self.game.surface.blit(self.image, (start_x, start_y))
+
+
+class GameObject:
+
+    def height(self) -> float:
+        return self.texture.height()
+
+    def width(self) -> float:
+        return self.texture.width()
+
+    def __init__(self, texture: Texture):
+        self.texture = texture
+
+
+class Car(GameObject):
 
     def calculate_starting_x(self):
         window_width = self.game.width()
@@ -177,7 +228,7 @@ class Car:
 
         return screen_height - (car_height + padding)
 
-    def get_texture(self):
+    def get_texture_image(self):
         return (Asset.CAR_IMAGE_ALT
                 if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
 
@@ -192,7 +243,7 @@ class Car:
 
     def __init__(self, game: Game):
         self.game = game
-        self.texture = self.get_texture()
+        self.texture = ImageTexture(game, self.get_texture_image())
 
         self.reset()
 
@@ -324,7 +375,7 @@ class Car:
             self.game.on_crash()
 
     def draw(self):
-        self.game.surface.blit(self.texture, (self.x, self.y))
+        self.texture.draw_at(self.x, self.y)
 
 
 game = Game(theme=NightTheme)
