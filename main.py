@@ -2,6 +2,7 @@ from typing import Literal, Tuple
 import pygame
 import math
 from pathlib import Path
+import time
 
 
 class Asset:
@@ -19,14 +20,17 @@ class Color:
 class DefaultTheme:
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.WHITE
+    FOREGROUND = Color.BLACK
 
 
 class NightTheme(DefaultTheme):
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.ASPHALT
+    FOREGROUND = Color.WHITE
 
 
 class Game:
+
     def __init__(self, theme: type[DefaultTheme]):
         # Window display config
         self.theme = theme
@@ -45,7 +49,10 @@ class Game:
         self.key_up_callbacks = {}
 
         # Set up default keybinds
-        self.keybinds = {pygame.K_LEFT: "move.left", pygame.K_RIGHT: "move.right"}
+        self.keybinds = {
+            pygame.K_LEFT: "move.left",
+            pygame.K_RIGHT: "move.right"
+        }
 
         pygame.init()
 
@@ -65,6 +72,12 @@ class Game:
         y2 = self.height()
 
         return x1, y1, x2, y2
+
+    def window_center(self) -> Tuple[float, float]:
+        """Calculates the coordinates of the center of the window"""
+        x = self.width() / 2
+        y = self.height() / 2
+        return (x, y)
 
     def on_event(self, event):
         # print(event)
@@ -92,14 +105,37 @@ class Game:
         self.key_up_callbacks[event.key] = lambda: on_key_up(event)
 
     def on_key_action(self, action: str):
+
         def decorator(callback):
             self.key_action_callbacks[action] = callback
 
         return decorator
 
+    def create_text(self, text, font):
+        surface = font.render(text, True, self.theme.FOREGROUND)
+        return surface, surface.get_rect()
+
+    def display_title(self, text: str):
+        large_font = pygame.font.Font("freesansbold.ttf", 115)
+        text_surface, text_rect = self.create_text(text, large_font)
+
+        text_rect.center = self.window_center()
+        self.surface.blit(text_surface, text_rect)
+        self.update_display()
+
+        print("You died!")
+        time.sleep(2)
+
+    def update_display(self):
+        pygame.display.update()
+
+    def on_crash(self):
+        self.car.reset()
+        self.display_title("You died!")
+
     def run(self):
-        car = Car(game=self)
-        self.objects.append(car)
+        self.car = Car(game=self)
+        self.objects.append(self.car)
 
         while not self.should_exit:
             for event in pygame.event.get():
@@ -109,14 +145,15 @@ class Game:
             self.surface.fill(self.background_color)
 
             # Update the objects
-            car.tick()
-            car.draw()
+            self.car.tick()
+            self.car.draw()
 
-            pygame.display.update()
+            self.update_display()
             self.clock.tick(60)
 
 
 class Car:
+
     def height(self) -> int:
         return self.texture.get_height()
 
@@ -124,7 +161,7 @@ class Car:
         return self.texture.get_width()
 
     def calculate_starting_x(self):
-        window_width = self.game.height()
+        window_width = self.game.width()
 
         # Calculate where the centre of the car should go, and thus where the left edge of the car should be
         center_position = window_width / 2
@@ -141,16 +178,11 @@ class Car:
         return screen_height - (car_height + padding)
 
     def get_texture(self):
-        return (
-            Asset.CAR_IMAGE_ALT
-            if self.game.theme.ALTERNATE_TEXTURES
-            else Asset.CAR_IMAGE
-        )
+        return (Asset.CAR_IMAGE_ALT
+                if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
 
-    def __init__(self, game: Game):
-        self.game = game
-        self.texture = self.get_texture()
-
+    def reset(self):
+        """Moves the car to its initial position"""
         self.x = self.calculate_starting_x()
         self.y = self.calculate_starting_y()
 
@@ -158,9 +190,16 @@ class Car:
         self.velocity_x = 0
         self.velocity_y = 0
 
+    def __init__(self, game: Game):
+        self.game = game
+        self.texture = self.get_texture()
+
+        self.reset()
+
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
         def start_moving_left(event):
+
             def undo(event):
                 self.velocity_x = 0
                 print("Left stopped")
@@ -171,6 +210,7 @@ class Car:
 
         @game.on_key_action("move.right")
         def start_moving_right(event):
+
             def undo(event):
                 self.velocity_x = 0
                 print("Right stopped")
@@ -184,8 +224,8 @@ class Car:
         #     self.velocity_x = 0
 
     def calculate_center_bounds(
-        self, parent_width: float, parent_height: float
-    ) -> Tuple[float, float, float, float]:
+            self, parent_width: float,
+            parent_height: float) -> Tuple[float, float, float, float]:
         """Calculates the bounding box of possible positions for the center point of this object"""
         x_padding = self.width() / 2
         y_padding = self.height() / 2
@@ -214,8 +254,8 @@ class Car:
         return (center_x, center_y)
 
     def calculate_position_percentage(
-        self, bounds: Tuple[float, float, float, float]
-    ) -> Tuple[float, float]:
+            self, bounds: Tuple[float, float, float,
+                                float]) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
 
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
@@ -247,30 +287,26 @@ class Car:
         our_collision_box = self.collision_box()
         window_bounding_box = self.game.window_rect()
 
-        is_within_x = (
-            our_collision_box[0] >= window_bounding_box[0]
-            and our_collision_box[2] <= window_bounding_box[2]
-        )
+        is_within_x = (our_collision_box[0] >= window_bounding_box[0]
+                       and our_collision_box[2] <= window_bounding_box[2])
 
-        is_within_y = (
-            our_collision_box[1] >= window_bounding_box[1]
-            and our_collision_box[3] <= window_bounding_box[3]
-        )
+        is_within_y = (our_collision_box[1] >= window_bounding_box[1]
+                       and our_collision_box[3] <= window_bounding_box[3])
 
         return is_within_x and is_within_y
 
     def on_window_resize(self, event):
-        old_center_point_bounds = self.calculate_center_bounds(*event.old_dimensions)
+        old_center_point_bounds = self.calculate_center_bounds(
+            *event.old_dimensions)
         position_percentage = self.calculate_position_percentage(
-            old_center_point_bounds
-        )
+            old_center_point_bounds)
         print("Was at", position_percentage)
 
         # Update object's position to be the in the same place relative to the window size
-        new_center_point_bounds = self.calculate_center_bounds(event.w, event.h)
+        new_center_point_bounds = self.calculate_center_bounds(
+            event.w, event.h)
         new_center = self.map_relative_position_to_box(
-            position_percentage, new_center_point_bounds
-        )
+            position_percentage, new_center_point_bounds)
         self.x = new_center[0] - self.width() / 2
         self.y = new_center[1] - self.height() / 2
 
@@ -285,7 +321,7 @@ class Car:
         self.y += y_movement
 
         if not self.is_within_window():
-            self.game.should_exit = True
+            self.game.on_crash()
 
     def draw(self):
         self.game.surface.blit(self.texture, (self.x, self.y))
