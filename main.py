@@ -205,8 +205,93 @@ class GameObject:
     def width(self) -> float:
         return self.texture.width()
 
+    def spawn_point(self) -> Tuple[float, float]:
+        pass
+
+    def reset(self):
+        """Moves the object to its initial position (spawn point)"""
+        spawn_point = self.spawn_point()
+        self.x, self.y = spawn_point
+
+        # Velocity values, measured in pixels/tick
+        self.velocity_x = 0
+        self.velocity_y = 0
+
     def __init__(self, texture: Texture):
         self.texture = texture
+        self.reset()
+
+    def calculate_center_bounds(
+            self, parent_width: float,
+            parent_height: float) -> Tuple[float, float, float, float]:
+        """Calculates the bounding box of possible positions for the center point of this object"""
+        x_padding = self.width() / 2
+        y_padding = self.height() / 2
+
+        x1 = 0 + x_padding
+        x2 = parent_width - x_padding
+        y1 = 0 + y_padding
+        y2 = parent_height - y_padding
+
+        return x1, y1, x2, y2
+
+    def collision_box(self) -> Tuple[float, float, float, float]:
+        """Calculates the visual bounding box (i.e. collision box) for this object"""
+        x1 = self.x
+        y1 = self.y
+        x2 = self.x + self.width()
+        y2 = self.y + self.height()
+
+        return x1, y1, x2, y2
+
+    def center_point(self) -> Tuple[float, float]:
+        """Calculates the coordinates of the center point of the object (not rounded)"""
+        center_x = self.x + self.width() / 2
+        center_y = self.y + self.height() / 2
+
+        return (center_x, center_y)
+
+    def calculate_position_percentage(
+            self, bounds: Tuple[float, float, float,
+                                float]) -> Tuple[float, float]:
+        """Calculates the position of the center of the object, returning coordinates in the form (x, y)
+        
+        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
+        """
+        x1, y1, x2, y2 = bounds
+        center_x, center_y = self.center_point()
+
+        # Calculate the percentage position of the center relative to the bounding box
+        center_percentage_x = (center_x - x1) / (x2 - x1)
+        center_percentage_y = (center_y - y1) / (y2 - y1)
+
+        return center_percentage_x, center_percentage_y
+
+    def map_relative_position_to_box(
+        self,
+        position_percentage: Tuple[float, float],
+        new_center_point_bounds: Tuple[float, float, float, float],
+    ) -> Tuple[float, float]:
+        """Calculates the new center point based on the saved percentage and the new bounding box dimensions"""
+        x1, y1, x2, y2 = new_center_point_bounds
+
+        # Calculate the new center based on the percentage and the new bounding box
+        new_center_x = x1 + (x2 - x1) * position_percentage[0]
+        new_center_y = y1 + (y2 - y1) * position_percentage[1]
+
+        return new_center_x, new_center_y
+
+    def is_within_window(self):
+        our_collision_box = self.collision_box()
+        window_bounding_box = self.game.window_rect()
+
+        is_within_x = (our_collision_box[0] >= window_bounding_box[0]
+                       and our_collision_box[2] <= window_bounding_box[2])
+
+        is_within_y = (our_collision_box[1] >= window_bounding_box[1]
+                       and our_collision_box[3] <= window_bounding_box[3])
+
+        return is_within_x and is_within_y
 
 
 class Car(GameObject):
@@ -218,8 +303,7 @@ class Car(GameObject):
         center_position = window_width / 2
         left_edge_position = center_position - (self.width() / 2)
 
-        # Don't place the car in-between pixels
-        return math.floor(left_edge_position)
+        return left_edge_position
 
     def calculate_starting_y(self):
         car_height = self.height()
@@ -232,20 +316,13 @@ class Car(GameObject):
         return (Asset.CAR_IMAGE_ALT
                 if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
 
-    def reset(self):
-        """Moves the car to its initial position"""
-        self.x = self.calculate_starting_x()
-        self.y = self.calculate_starting_y()
-
-        # Velocity values, measured in pixels/tick
-        self.velocity_x = 0
-        self.velocity_y = 0
+    def spawn_point(self) -> Tuple[float, float]:
+        return (self.calculate_starting_x(), self.calculate_starting_y())
 
     def __init__(self, game: Game):
         self.game = game
-        self.texture = ImageTexture(game, self.get_texture_image())
-
-        self.reset()
+        texture = ImageTexture(game, self.get_texture_image())
+        super().__init__(texture)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
