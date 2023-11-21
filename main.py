@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Literal, Tuple
 import pygame
 import math
@@ -43,7 +44,7 @@ class Game:
         # Initialise other game components
         self.clock = pygame.time.Clock()
         self.should_exit = False
-        self.objects = []
+        self.objects: list[GameObject] = []
         self.old_window_dimensions = (self.width(), self.height())
         self.key_action_callbacks = {}
         self.key_up_callbacks = {}
@@ -84,9 +85,9 @@ class Game:
         if event.type == pygame.QUIT:
             self.should_exit = True
         elif event.type == pygame.VIDEORESIZE:
+            event.old_dimensions = self.old_window_dimensions
             for object in self.objects:
-                event.old_dimensions = self.old_window_dimensions
-                object.on_window_resize(event)
+                object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
         elif event.type == pygame.KEYDOWN:
             if event.key in self.keybinds:
@@ -206,7 +207,7 @@ class GameObject:
         return self.texture.width()
 
     def spawn_point(self) -> Tuple[float, float]:
-        pass
+        raise NotImplementedError()
 
     def reset(self):
         """Moves the object to its initial position (spawn point)"""
@@ -217,9 +218,14 @@ class GameObject:
         self.velocity_x = 0
         self.velocity_y = 0
 
-    def __init__(self, texture: Texture):
+    def __init__(self, texture: Texture,
+                 window_resize_handler: WindowResizeHandler):
         self.texture = texture
+        self.window_resize_handler = window_resize_handler
         self.reset()
+
+    def draw(self):
+        raise NotImplementedError()
 
     def calculate_center_bounds(
             self, parent_width: float,
@@ -294,6 +300,43 @@ class GameObject:
         return is_within_x and is_within_y
 
 
+class WindowResizeHandler:
+
+    def __init__(self, game_object: GameObject):
+        self.object = game_object
+
+    def get_new_position(self, event) -> Tuple[float, float]:
+        raise NotImplementedError()
+
+    def handle_window_resize(self, event):
+        new_position = self.get_new_position(event)
+        self.object.x, self.object.y = new_position
+        self.object.draw()
+
+
+class LinearPositionScaling(WindowResizeHandler):
+
+    def __init__(self, game_object: GameObject):
+        super().__init__(game_object)
+
+    def get_new_position(self, event) -> Tuple[float, float]:
+        old_center_point_bounds = self.object.calculate_center_bounds(
+            *event.old_dimensions)
+        position_percentage = self.object.calculate_position_percentage(
+            old_center_point_bounds)
+        print("Was at", position_percentage)
+
+        # Update object's position to be the in the same place relative to the window size
+        new_center_point_bounds = self.object.calculate_center_bounds(
+            event.w, event.h)
+        new_center = self.object.map_relative_position_to_box(
+            position_percentage, new_center_point_bounds)
+        new_x = new_center[0] - self.object.width() / 2
+        new_y = new_center[1] - self.object.height() / 2
+
+        return new_x, new_y
+
+
 class Car(GameObject):
 
     def calculate_starting_x(self):
@@ -322,7 +365,8 @@ class Car(GameObject):
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
-        super().__init__(texture)
+        super().__init__(texture,
+                         window_resize_handler=LinearPositionScaling(self))
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
@@ -346,100 +390,6 @@ class Car(GameObject):
             self.velocity_x = 5
             print("Right started")
             return undo
-
-        # @game.on_key_action("move.left")
-        # def stop_moving_left():
-        #     self.velocity_x = 0
-
-    def calculate_center_bounds(
-            self, parent_width: float,
-            parent_height: float) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box of possible positions for the center point of this object"""
-        x_padding = self.width() / 2
-        y_padding = self.height() / 2
-
-        x1 = 0 + x_padding
-        x2 = parent_width - x_padding
-        y1 = 0 + y_padding
-        y2 = parent_height - y_padding
-
-        return x1, y1, x2, y2
-
-    def collision_box(self) -> Tuple[float, float, float, float]:
-        """Calculates the visual bounding box (i.e. collision box) for this object"""
-        x1 = self.x
-        y1 = self.y
-        x2 = self.x + self.width()
-        y2 = self.y + self.height()
-
-        return x1, y1, x2, y2
-
-    def center_point(self) -> Tuple[float, float]:
-        """Calculates the coordinates of the center point of the object (not rounded)"""
-        center_x = self.x + self.width() / 2
-        center_y = self.y + self.height() / 2
-
-        return (center_x, center_y)
-
-    def calculate_position_percentage(
-            self, bounds: Tuple[float, float, float,
-                                float]) -> Tuple[float, float]:
-        """Calculates the position of the center of the object, returning coordinates in the form (x, y)
-
-        - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
-        """
-        x1, y1, x2, y2 = bounds
-        center_x, center_y = self.center_point()
-
-        # Calculate the percentage position of the center relative to the bounding box
-        center_percentage_x = (center_x - x1) / (x2 - x1)
-        center_percentage_y = (center_y - y1) / (y2 - y1)
-
-        return center_percentage_x, center_percentage_y
-
-    def map_relative_position_to_box(
-        self,
-        position_percentage: Tuple[float, float],
-        new_center_point_bounds: Tuple[float, float, float, float],
-    ) -> Tuple[float, float]:
-        """Calculates the new center point based on the saved percentage and the new bounding box dimensions"""
-        x1, y1, x2, y2 = new_center_point_bounds
-
-        # Calculate the new center based on the percentage and the new bounding box
-        new_center_x = x1 + (x2 - x1) * position_percentage[0]
-        new_center_y = y1 + (y2 - y1) * position_percentage[1]
-
-        return new_center_x, new_center_y
-
-    def is_within_window(self):
-        our_collision_box = self.collision_box()
-        window_bounding_box = self.game.window_rect()
-
-        is_within_x = (our_collision_box[0] >= window_bounding_box[0]
-                       and our_collision_box[2] <= window_bounding_box[2])
-
-        is_within_y = (our_collision_box[1] >= window_bounding_box[1]
-                       and our_collision_box[3] <= window_bounding_box[3])
-
-        return is_within_x and is_within_y
-
-    def on_window_resize(self, event):
-        old_center_point_bounds = self.calculate_center_bounds(
-            *event.old_dimensions)
-        position_percentage = self.calculate_position_percentage(
-            old_center_point_bounds)
-        print("Was at", position_percentage)
-
-        # Update object's position to be the in the same place relative to the window size
-        new_center_point_bounds = self.calculate_center_bounds(
-            event.w, event.h)
-        new_center = self.map_relative_position_to_box(
-            position_percentage, new_center_point_bounds)
-        self.x = new_center[0] - self.width() / 2
-        self.y = new_center[1] - self.height() / 2
-
-        # Redraw the object
-        self.draw()
 
     def tick(self):
         x_movement = self.velocity_x
