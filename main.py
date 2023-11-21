@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, Tuple
+from typing import Callable, Literal, Tuple
 import pygame
 import math
 from pathlib import Path
@@ -149,7 +149,7 @@ class Game:
 
             # Update the objects
             for object in self.objects:
-                object.tick()
+                object.run_tick_tasks()
                 object.draw()
 
             self.update_display()
@@ -224,6 +224,7 @@ class GameObject:
     def __init__(self, texture: Texture,
                  window_resize_handler: WindowResizeHandler):
         assert hasattr(self, "game")
+        self.tick_tasks: list[Callable] = []
         self.texture = texture
         self.window_resize_handler = window_resize_handler
         self.reset()
@@ -231,8 +232,9 @@ class GameObject:
     def draw(self):
         raise NotImplementedError()
 
-    def tick(self):
-        raise NotImplementedError()
+    def run_tick_tasks(self):
+        for callback in self.tick_tasks:
+            callback()
 
     def calculate_center_bounds(
             self, parent_width: float,
@@ -344,6 +346,20 @@ class LinearPositionScaling(WindowResizeHandler):
         return new_x, new_y
 
 
+class Velocity:
+
+    def on_tick(self):
+        x_movement = self.object.velocity_x
+        y_movement = self.object.velocity_y
+
+        self.object.x += x_movement
+        self.object.y += y_movement
+
+    def __init__(self, game_object: GameObject):
+        self.object = game_object
+        self.object.tick_tasks.append(self.on_tick)
+
+
 class Car(GameObject):
 
     def calculate_starting_x(self):
@@ -369,11 +385,18 @@ class Car(GameObject):
     def spawn_point(self) -> Tuple[float, float]:
         return (self.calculate_starting_x(), self.calculate_starting_y())
 
+    def check_collision_with_window_edge(self):
+        if not self.is_within_window():
+            self.game.on_crash()
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
         super().__init__(texture=texture,
                          window_resize_handler=LinearPositionScaling(self))
+
+        self.velocity = Velocity(self)
+        self.tick_tasks.append(self.check_collision_with_window_edge)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
@@ -397,16 +420,6 @@ class Car(GameObject):
             self.velocity_x = 5
             print("Right started")
             return undo
-
-    def tick(self):
-        x_movement = self.velocity_x
-        y_movement = self.velocity_y
-
-        self.x += x_movement
-        self.y += y_movement
-
-        if not self.is_within_window():
-            self.game.on_crash()
 
     def draw(self):
         self.texture.draw_at(self.x, self.y)
