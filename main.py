@@ -138,6 +138,8 @@ class Game:
         self.car = Car(game=self)
         self.objects.append(self.car)
 
+        self.objects.append(Block(game=self))
+
         while not self.should_exit:
             for event in pygame.event.get():
                 self.on_event(event)
@@ -146,8 +148,9 @@ class Game:
             self.surface.fill(self.background_color)
 
             # Update the objects
-            self.car.tick()
-            self.car.draw()
+            for object in self.objects:
+                object.tick()
+                object.draw()
 
             self.update_display()
             self.clock.tick(60)
@@ -165,7 +168,7 @@ class Texture:
     def width(self) -> float:
         return self.base_width
 
-    def draw_at(start_x, start_y):
+    def draw_at(self, start_x, start_y):
         pass
 
 
@@ -220,11 +223,15 @@ class GameObject:
 
     def __init__(self, texture: Texture,
                  window_resize_handler: WindowResizeHandler):
+        assert hasattr(self, "game")
         self.texture = texture
         self.window_resize_handler = window_resize_handler
         self.reset()
 
     def draw(self):
+        raise NotImplementedError()
+
+    def tick(self):
         raise NotImplementedError()
 
     def calculate_center_bounds(
@@ -365,7 +372,7 @@ class Car(GameObject):
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
-        super().__init__(texture,
+        super().__init__(texture=texture,
                          window_resize_handler=LinearPositionScaling(self))
 
         # Bind movement callbacks to the appropiate key actions
@@ -403,6 +410,25 @@ class Car(GameObject):
 
     def draw(self):
         self.texture.draw_at(self.x, self.y)
+
+
+class Block(GameObject):
+
+    def spawn_point(self) -> Tuple[float, float]:
+        return (0, 0)
+
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.x, self.y)
+
+    def __init__(self, game: Game):
+        self.game = game
+        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50,
+                                    50)
+        super().__init__(texture=texture,
+                         window_resize_handler=LinearPositionScaling(self))
 
 
 game = Game(theme=NightTheme)
