@@ -217,10 +217,6 @@ class GameObject:
         spawn_point = self.spawn_point()
         self.x, self.y = spawn_point
 
-        # Velocity values, measured in pixels/tick
-        self.velocity_x = 0
-        self.velocity_y = 0
-
     def __init__(self, texture: Texture,
                  window_resize_handler: WindowResizeHandler):
         assert hasattr(self, "game")
@@ -349,13 +345,17 @@ class LinearPositionScaling(WindowResizeHandler):
 class Velocity:
 
     def on_tick(self):
-        x_movement = self.object.velocity_x
-        y_movement = self.object.velocity_y
+        x_movement = self.x
+        y_movement = self.y
 
         self.object.x += x_movement
         self.object.y += y_movement
 
     def __init__(self, game_object: GameObject):
+        # Magnitudes of velocity, measured in pixels/tick
+        self.x = 0
+        self.y = 0
+
         self.object = game_object
         self.object.tick_tasks.append(self.on_tick)
 
@@ -403,10 +403,10 @@ class Car(GameObject):
         def start_moving_left(event):
 
             def undo(event):
-                self.velocity_x = 0
+                self.velocity.x = 0
                 print("Left stopped")
 
-            self.velocity_x = -5
+            self.velocity.x = -5
             print("Left started")
             return undo
 
@@ -414,10 +414,10 @@ class Car(GameObject):
         def start_moving_right(event):
 
             def undo(event):
-                self.velocity_x = 0
+                self.velocity.x = 0
                 print("Right stopped")
 
-            self.velocity_x = 5
+            self.velocity.x = 5
             print("Right started")
             return undo
 
