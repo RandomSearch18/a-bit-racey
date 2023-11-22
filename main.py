@@ -31,6 +31,52 @@ class NightTheme(DefaultTheme):
     FOREGROUND = Color.WHITE
 
 
+class Box:
+
+    def __init__(self, x1: float, y1: float, x2: float, y2: float):
+        self.x1 = x1
+        self.y1 = y1
+        self.x2 = x2
+        self.y2 = y2
+
+        self.width = x2 - x1
+        self.height = y2 - y1
+
+    @property
+    def top(self) -> float:
+        return self.y1
+
+    @property
+    def bottom(self) -> float:
+        return self.y2
+
+    @property
+    def left(self) -> float:
+        return self.x1
+
+    @property
+    def right(self) -> float:
+        return self.x2
+
+    def is_inside(self, other_box: Box) -> bool:
+        is_within_x = (self.left >= other_box.left
+                       and self.right <= other_box.right)
+
+        is_within_y = (self.top >= other_box.top
+                       and self.bottom <= other_box.bottom)
+
+        return is_within_x and is_within_y
+
+    def is_outside(self, other_box: Box) -> bool:
+        is_outside_x = (self.right < other_box.left
+                        or self.left > other_box.right)
+
+        is_outside_y = (self.bottom < other_box.top
+                        or self.top > other_box.bottom)
+
+        return is_outside_x or is_outside_y
+
+
 class Game:
 
     def __init__(self, theme: type[DefaultTheme]):
@@ -66,14 +112,14 @@ class Game:
         """Returns the height of the window, in pixels"""
         return self.surface.get_height()
 
-    def window_rect(self) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box that represents the size of the window"""
+    def window_box(self) -> Box:
+        """Calculates the box that represents the size of the window"""
         x1 = 0
         y1 = 0
         x2 = self.width()
         y2 = self.height()
 
-        return x1, y1, x2, y2
+        return Box(x1, y1, x2, y2)
 
     def window_center(self) -> Tuple[float, float]:
         """Calculates the coordinates of the center of the window"""
@@ -228,6 +274,8 @@ class GameObject:
     def __init__(self, texture: Texture,
                  window_resize_handler: WindowResizeHandler):
         assert hasattr(self, "game")
+        assert isinstance(self.game, Game)
+        self.game: Game = self.game
         self.tick_tasks: list[Callable] = []
         self.texture = texture
         self.window_resize_handler = window_resize_handler
@@ -240,10 +288,9 @@ class GameObject:
         for callback in self.tick_tasks:
             callback()
 
-    def calculate_center_bounds(
-            self, parent_width: float,
-            parent_height: float) -> Tuple[float, float, float, float]:
-        """Calculates the bounding box of possible positions for the center point of this object"""
+    def calculate_center_bounds(self, parent_width: float,
+                                parent_height: float) -> Box:
+        """Calculates the box of possible positions for the center point of this object"""
         x_padding = self.width() / 2
         y_padding = self.height() / 2
 
@@ -252,16 +299,16 @@ class GameObject:
         y1 = 0 + y_padding
         y2 = parent_height - y_padding
 
-        return x1, y1, x2, y2
+        return Box(x1, y1, x2, y2)
 
-    def collision_box(self) -> Tuple[float, float, float, float]:
+    def collision_box(self) -> Box:
         """Calculates the visual bounding box (i.e. collision box) for this object"""
         x1 = self.x
         y1 = self.y
         x2 = self.x + self.width()
         y2 = self.y + self.height()
 
-        return x1, y1, x2, y2
+        return Box(x1, y1, x2, y2)
 
     def center_point(self) -> Tuple[float, float]:
         """Calculates the coordinates of the center point of the object (not rounded)"""
@@ -270,58 +317,41 @@ class GameObject:
 
         return (center_x, center_y)
 
-    def calculate_position_percentage(
-            self, bounds: Tuple[float, float, float,
-                                float]) -> Tuple[float, float]:
+    def calculate_position_percentage(self,
+                                      bounds: Box) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
         
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
-        x1, y1, x2, y2 = bounds
         center_x, center_y = self.center_point()
 
         # Calculate the percentage position of the center relative to the bounding box
-        center_percentage_x = (center_x - x1) / (x2 - x1)
-        center_percentage_y = (center_y - y1) / (y2 - y1)
+        percentage_x = (center_x - bounds.left) / bounds.width
+        percentage_y = (center_y - bounds.top) / bounds.height
 
-        return center_percentage_x, center_percentage_y
+        return percentage_x, percentage_y
 
     def map_relative_position_to_box(
         self,
         position_percentage: Tuple[float, float],
-        new_center_point_bounds: Tuple[float, float, float, float],
+        new_center_point_bounds: Box,
     ) -> Tuple[float, float]:
         """Calculates the new center point based on the saved percentage and the new bounding box dimensions"""
-        x1, y1, x2, y2 = new_center_point_bounds
+        limit = new_center_point_bounds
 
         # Calculate the new center based on the percentage and the new bounding box
-        new_center_x = x1 + (x2 - x1) * position_percentage[0]
-        new_center_y = y1 + (y2 - y1) * position_percentage[1]
+        new_center_x = limit.left + limit.width * position_percentage[0]
+        new_center_y = limit.top + limit.height * position_percentage[1]
 
         return new_center_x, new_center_y
 
     def is_within_window(self):
-        our_collision_box = self.collision_box()
-        window_bounding_box = self.game.window_rect()
-
-        is_within_x = (our_collision_box[0] >= window_bounding_box[0]
-                       and our_collision_box[2] <= window_bounding_box[2])
-
-        is_within_y = (our_collision_box[1] >= window_bounding_box[1]
-                       and our_collision_box[3] <= window_bounding_box[3])
-
-        return is_within_x and is_within_y
+        window = self.game.window_box()
+        return self.collision_box().is_inside(window)
 
     def is_outside_window(self):
-        our_collision_box = self.collision_box()
-        window_bounding_box = self.game.window_rect()
-
-        is_outside_x = (our_collision_box[2] <= window_bounding_box[0]
-                        and our_collision_box[0] >= window_bounding_box[2])
-        is_outside_y = (our_collision_box[3] <= window_bounding_box[1]
-                        and our_collision_box[1] >= window_bounding_box[3])
-
-        return is_outside_x or is_outside_y
+        window = self.game.window_box()
+        return self.collision_box().is_outside(window)
 
 
 class WindowResizeHandler:
