@@ -58,6 +58,13 @@ class Box:
     def right(self) -> float:
         return self.x2
 
+    def center(self) -> Tuple[float, float]:
+        """Calculates the coordinates of the center of the box"""
+        center_x = self.left + self.width / 2
+        center_y = self.top + self.height / 2
+
+        return (center_x, center_y)
+
     def is_inside(self, other_box: Box) -> bool:
         is_within_x = (self.left >= other_box.left
                        and self.right <= other_box.right)
@@ -121,12 +128,6 @@ class Game:
 
         return Box(x1, y1, x2, y2)
 
-    def window_center(self) -> Tuple[float, float]:
-        """Calculates the coordinates of the center of the window"""
-        x = self.width() / 2
-        y = self.height() / 2
-        return (x, y)
-
     def on_event(self, event):
         # print(event)
         if event.type == pygame.QUIT:
@@ -167,7 +168,7 @@ class Game:
         large_font = pygame.font.Font("freesansbold.ttf", 115)
         text_surface, text_rect = self.create_text(text, large_font)
 
-        text_rect.center = self.window_center()
+        text_rect.center = self.window_box.center()
         self.surface.blit(text_surface, text_rect)
         self.update_display()
 
@@ -310,20 +311,13 @@ class GameObject:
 
         return Box(x1, y1, x2, y2)
 
-    def center_point(self) -> Tuple[float, float]:
-        """Calculates the coordinates of the center point of the object (not rounded)"""
-        center_x = self.x + self.width() / 2
-        center_y = self.y + self.height() / 2
-
-        return (center_x, center_y)
-
     def calculate_position_percentage(self,
                                       bounds: Box) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
         
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
-        center_x, center_y = self.center_point()
+        center_x, center_y = self.collision_box().center()
 
         # Calculate the percentage position of the center relative to the bounding box
         percentage_x = (center_x - bounds.left) / bounds.width
