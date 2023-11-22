@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Callable, Literal, Tuple
 import pygame
 import math
+import random
 from pathlib import Path
 import time
 
@@ -446,7 +447,7 @@ class Car(GameObject):
 class Block(GameObject):
 
     def spawn_point(self) -> Tuple[float, float]:
-        return (0, self.spawn_at_y)
+        return (self.spawn_at_x, self.spawn_at_y)
 
     def tick(self):
         pass
@@ -456,6 +457,7 @@ class Block(GameObject):
 
     def __init__(self, game: Game, spawn_at: float = 0):
         self.game = game
+        self.spawn_at_x = random.randrange(0, self.game.width())
         self.spawn_at_y = spawn_at
         texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50,
                                     50)
