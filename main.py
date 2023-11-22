@@ -138,7 +138,8 @@ class Game:
         self.car = Car(game=self)
         self.objects.append(self.car)
 
-        self.objects.append(Block(game=self))
+        active_block = Block(game=self, spawn_at=-700)
+        self.objects.append(active_block)
 
         while not self.should_exit:
             for event in pygame.event.get():
@@ -146,6 +147,12 @@ class Game:
 
             # Reset the surface
             self.surface.fill(self.background_color)
+
+            # Spawn a new block if the old one has passed the bottom screen edge
+            if active_block.y > self.height():
+                self.objects.remove(active_block)
+                active_block = Block(game=self, spawn_at=-20)
+                self.objects.append(active_block)
 
             # Update the objects
             for object in self.objects:
@@ -304,6 +311,17 @@ class GameObject:
 
         return is_within_x and is_within_y
 
+    def is_outside_window(self):
+        our_collision_box = self.collision_box()
+        window_bounding_box = self.game.window_rect()
+
+        is_outside_x = (our_collision_box[2] <= window_bounding_box[0]
+                        and our_collision_box[0] >= window_bounding_box[2])
+        is_outside_y = (our_collision_box[3] <= window_bounding_box[1]
+                        and our_collision_box[1] >= window_bounding_box[3])
+
+        return is_outside_x or is_outside_y
+
 
 class WindowResizeHandler:
 
@@ -428,7 +446,7 @@ class Car(GameObject):
 class Block(GameObject):
 
     def spawn_point(self) -> Tuple[float, float]:
-        return (0, -700)
+        return (0, self.spawn_at_y)
 
     def tick(self):
         pass
@@ -436,8 +454,9 @@ class Block(GameObject):
     def draw(self):
         self.texture.draw_at(self.x, self.y)
 
-    def __init__(self, game: Game):
+    def __init__(self, game: Game, spawn_at: float = 0):
         self.game = game
+        self.spawn_at_y = spawn_at
         texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50,
                                     50)
         super().__init__(texture=texture,
