@@ -428,7 +428,7 @@ class Car(GameObject):
 class Block(GameObject):
 
     def spawn_point(self) -> Tuple[float, float]:
-        return (0, 0)
+        return (0, -700)
 
     def tick(self):
         pass
@@ -442,6 +442,8 @@ class Block(GameObject):
                                     50)
         super().__init__(texture=texture,
                          window_resize_handler=LinearPositionScaling(self))
+        self.velocity = Velocity(self)
+        self.velocity.y = 5
 
 
 game = Game(theme=NightTheme)
