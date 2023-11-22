@@ -1,6 +1,8 @@
-from typing import Literal, Tuple
+from __future__ import annotations
+from typing import Callable, Literal, Tuple
 import pygame
 import math
+import random
 from pathlib import Path
 import time
 
@@ -43,7 +45,7 @@ class Game:
         # Initialise other game components
         self.clock = pygame.time.Clock()
         self.should_exit = False
-        self.objects = []
+        self.objects: list[GameObject] = []
         self.old_window_dimensions = (self.width(), self.height())
         self.key_action_callbacks = {}
         self.key_up_callbacks = {}
@@ -84,9 +86,9 @@ class Game:
         if event.type == pygame.QUIT:
             self.should_exit = True
         elif event.type == pygame.VIDEORESIZE:
+            event.old_dimensions = self.old_window_dimensions
             for object in self.objects:
-                event.old_dimensions = self.old_window_dimensions
-                object.on_window_resize(event)
+                object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
         elif event.type == pygame.KEYDOWN:
             if event.key in self.keybinds:
@@ -137,6 +139,9 @@ class Game:
         self.car = Car(game=self)
         self.objects.append(self.car)
 
+        active_block = Block(game=self, spawn_at=-700)
+        self.objects.append(active_block)
+
         while not self.should_exit:
             for event in pygame.event.get():
                 self.on_event(event)
@@ -144,84 +149,96 @@ class Game:
             # Reset the surface
             self.surface.fill(self.background_color)
 
+            # Spawn a new block if the old one has passed the bottom screen edge
+            if active_block.y > self.height():
+                self.objects.remove(active_block)
+                active_block = Block(game=self, spawn_at=-20)
+                self.objects.append(active_block)
+
             # Update the objects
-            self.car.tick()
-            self.car.draw()
+            for object in self.objects:
+                object.run_tick_tasks()
+                object.draw()
 
             self.update_display()
             self.clock.tick(60)
 
 
-class Car:
+class Texture:
 
-    def height(self) -> int:
-        return self.texture.get_height()
+    def __init__(self, width, height):
+        self.base_width = width
+        self.base_height = height
 
-    def width(self) -> int:
-        return self.texture.get_width()
+    def height(self) -> float:
+        return self.base_height
 
-    def calculate_starting_x(self):
-        window_width = self.game.width()
+    def width(self) -> float:
+        return self.base_width
 
-        # Calculate where the centre of the car should go, and thus where the left edge of the car should be
-        center_position = window_width / 2
-        left_edge_position = center_position - (self.width() / 2)
+    def draw_at(self, start_x, start_y):
+        pass
 
-        # Don't place the car in-between pixels
-        return math.floor(left_edge_position)
 
-    def calculate_starting_y(self):
-        car_height = self.height()
-        screen_height = self.game.height()
-        padding = 5  # 5px of bottom padding
+class PlainColorTexture(Texture):
 
-        return screen_height - (car_height + padding)
+    def __init__(self, game: Game, color: Tuple[float, float, float], width,
+                 height):
+        self.game = game
+        self.color = color
+        super().__init__(width, height)
 
-    def get_texture(self):
-        return (Asset.CAR_IMAGE_ALT
-                if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
+    def draw_at(self, start_x, start_y):
+        pygame.draw.rect(
+            self.game.surface, self.color,
+            [start_x, start_y, self.width(),
+             self.height()])
+
+
+class ImageTexture(Texture):
+
+    def __init__(self, game, image):
+        self.game = game
+        self.image = image
+
+        width = self.image.get_width()
+        height = self.image.get_height()
+        super().__init__(width, height)
+
+    def draw_at(self, start_x, start_y):
+        self.game.surface.blit(self.image, (start_x, start_y))
+
+
+class GameObject:
+
+    def height(self) -> float:
+        return self.texture.height()
+
+    def width(self) -> float:
+        return self.texture.width()
+
+    def spawn_point(self) -> Tuple[float, float]:
+        raise NotImplementedError()
 
     def reset(self):
-        """Moves the car to its initial position"""
-        self.x = self.calculate_starting_x()
-        self.y = self.calculate_starting_y()
+        """Moves the object to its initial position (spawn point)"""
+        spawn_point = self.spawn_point()
+        self.x, self.y = spawn_point
 
-        # Velocity values, measured in pixels/tick
-        self.velocity_x = 0
-        self.velocity_y = 0
-
-    def __init__(self, game: Game):
-        self.game = game
-        self.texture = self.get_texture()
-
+    def __init__(self, texture: Texture,
+                 window_resize_handler: WindowResizeHandler):
+        assert hasattr(self, "game")
+        self.tick_tasks: list[Callable] = []
+        self.texture = texture
+        self.window_resize_handler = window_resize_handler
         self.reset()
 
-        # Bind movement callbacks to the appropiate key actions
-        @game.on_key_action("move.left")
-        def start_moving_left(event):
+    def draw(self):
+        raise NotImplementedError()
 
-            def undo(event):
-                self.velocity_x = 0
-                print("Left stopped")
-
-            self.velocity_x = -5
-            print("Left started")
-            return undo
-
-        @game.on_key_action("move.right")
-        def start_moving_right(event):
-
-            def undo(event):
-                self.velocity_x = 0
-                print("Right stopped")
-
-            self.velocity_x = 5
-            print("Right started")
-            return undo
-
-        # @game.on_key_action("move.left")
-        # def stop_moving_left():
-        #     self.velocity_x = 0
+    def run_tick_tasks(self):
+        for callback in self.tick_tasks:
+            callback()
 
     def calculate_center_bounds(
             self, parent_width: float,
@@ -257,7 +274,7 @@ class Car:
             self, bounds: Tuple[float, float, float,
                                 float]) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
-
+        
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
         x1, y1, x2, y2 = bounds
@@ -295,36 +312,159 @@ class Car:
 
         return is_within_x and is_within_y
 
-    def on_window_resize(self, event):
-        old_center_point_bounds = self.calculate_center_bounds(
+    def is_outside_window(self):
+        our_collision_box = self.collision_box()
+        window_bounding_box = self.game.window_rect()
+
+        is_outside_x = (our_collision_box[2] <= window_bounding_box[0]
+                        and our_collision_box[0] >= window_bounding_box[2])
+        is_outside_y = (our_collision_box[3] <= window_bounding_box[1]
+                        and our_collision_box[1] >= window_bounding_box[3])
+
+        return is_outside_x or is_outside_y
+
+
+class WindowResizeHandler:
+
+    def __init__(self, game_object: GameObject):
+        self.object = game_object
+
+    def get_new_position(self, event) -> Tuple[float, float]:
+        raise NotImplementedError()
+
+    def handle_window_resize(self, event):
+        new_position = self.get_new_position(event)
+        self.object.x, self.object.y = new_position
+        self.object.draw()
+
+
+class LinearPositionScaling(WindowResizeHandler):
+
+    def __init__(self, game_object: GameObject):
+        super().__init__(game_object)
+
+    def get_new_position(self, event) -> Tuple[float, float]:
+        old_center_point_bounds = self.object.calculate_center_bounds(
             *event.old_dimensions)
-        position_percentage = self.calculate_position_percentage(
+        position_percentage = self.object.calculate_position_percentage(
             old_center_point_bounds)
         print("Was at", position_percentage)
 
         # Update object's position to be the in the same place relative to the window size
-        new_center_point_bounds = self.calculate_center_bounds(
+        new_center_point_bounds = self.object.calculate_center_bounds(
             event.w, event.h)
-        new_center = self.map_relative_position_to_box(
+        new_center = self.object.map_relative_position_to_box(
             position_percentage, new_center_point_bounds)
-        self.x = new_center[0] - self.width() / 2
-        self.y = new_center[1] - self.height() / 2
+        new_x = new_center[0] - self.object.width() / 2
+        new_y = new_center[1] - self.object.height() / 2
 
-        # Redraw the object
-        self.draw()
+        return new_x, new_y
 
-    def tick(self):
-        x_movement = self.velocity_x
-        y_movement = self.velocity_y
 
-        self.x += x_movement
-        self.y += y_movement
+class Velocity:
 
+    def on_tick(self):
+        x_movement = self.x
+        y_movement = self.y
+
+        self.object.x += x_movement
+        self.object.y += y_movement
+
+    def __init__(self, game_object: GameObject):
+        # Magnitudes of velocity, measured in pixels/tick
+        self.x = 0
+        self.y = 0
+
+        self.object = game_object
+        self.object.tick_tasks.append(self.on_tick)
+
+
+class Car(GameObject):
+
+    def calculate_starting_x(self):
+        window_width = self.game.width()
+
+        # Calculate where the centre of the car should go, and thus where the left edge of the car should be
+        center_position = window_width / 2
+        left_edge_position = center_position - (self.width() / 2)
+
+        return left_edge_position
+
+    def calculate_starting_y(self):
+        car_height = self.height()
+        screen_height = self.game.height()
+        padding = 5  # 5px of bottom padding
+
+        return screen_height - (car_height + padding)
+
+    def get_texture_image(self):
+        return (Asset.CAR_IMAGE_ALT
+                if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
+
+    def spawn_point(self) -> Tuple[float, float]:
+        return (self.calculate_starting_x(), self.calculate_starting_y())
+
+    def check_collision_with_window_edge(self):
         if not self.is_within_window():
             self.game.on_crash()
 
+    def __init__(self, game: Game):
+        self.game = game
+        texture = ImageTexture(game, self.get_texture_image())
+        super().__init__(texture=texture,
+                         window_resize_handler=LinearPositionScaling(self))
+
+        self.velocity = Velocity(self)
+        self.tick_tasks.append(self.check_collision_with_window_edge)
+
+        # Bind movement callbacks to the appropiate key actions
+        @game.on_key_action("move.left")
+        def start_moving_left(event):
+
+            def undo(event):
+                self.velocity.x = 0
+                print("Left stopped")
+
+            self.velocity.x = -5
+            print("Left started")
+            return undo
+
+        @game.on_key_action("move.right")
+        def start_moving_right(event):
+
+            def undo(event):
+                self.velocity.x = 0
+                print("Right stopped")
+
+            self.velocity.x = 5
+            print("Right started")
+            return undo
+
     def draw(self):
-        self.game.surface.blit(self.texture, (self.x, self.y))
+        self.texture.draw_at(self.x, self.y)
+
+
+class Block(GameObject):
+
+    def spawn_point(self) -> Tuple[float, float]:
+        return (self.spawn_at_x, self.spawn_at_y)
+
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.x, self.y)
+
+    def __init__(self, game: Game, spawn_at: float = 0):
+        self.game = game
+        self.spawn_at_x = random.randrange(0, self.game.width())
+        self.spawn_at_y = spawn_at
+        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50,
+                                    50)
+        super().__init__(texture=texture,
+                         window_resize_handler=LinearPositionScaling(self))
+        self.velocity = Velocity(self)
+        self.velocity.y = 5
 
 
 game = Game(theme=NightTheme)
