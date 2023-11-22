@@ -187,7 +187,7 @@ class Game:
         active_block = Block(game=self, spawn_at=-700)
         self.objects.append(active_block)
 
-        while not self.has_died:
+        while not self.has_died and not self.exited:
             for event in pygame.event.get():
                 self.on_event(event)
 
@@ -430,8 +430,7 @@ class Car(GameObject):
 
     def check_collision_with_other_objects(self):
         for object in self.game.objects:
-            collided = not self.collision_box().is_outside(
-                object.collision_box())
+            collided = not self.collision_box().is_outside(object.collision_box())
             if not collided:
                 continue
             if object == self:
