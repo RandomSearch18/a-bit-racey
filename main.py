@@ -91,7 +91,7 @@ class Game:
 
         # Initialise other game components
         self.clock = pygame.time.Clock()
-        self.should_exit = False
+        self.has_died = False
         self.objects: list[GameObject] = []
         self.old_window_dimensions = (self.width(), self.height())
         self.key_action_callbacks = {}
@@ -122,7 +122,7 @@ class Game:
     def on_event(self, event):
         # print(event)
         if event.type == pygame.QUIT:
-            self.should_exit = True
+            self.exited = True
         elif event.type == pygame.VIDEORESIZE:
             event.old_dimensions = self.old_window_dimensions
             for object in self.objects:
@@ -169,17 +169,25 @@ class Game:
         pygame.display.update()
 
     def trigger_crash(self):
-        self.car.reset()
         self.display_title("You died!")
+        self.has_died = True
 
     def run(self):
+        self.exited = False
+        while not self.exited:
+            print("Starting new game!")
+            self.game_session()
+
+    def game_session(self):
+        self.has_died = False
+
         self.car = Car(game=self)
         self.objects.append(self.car)
 
         active_block = Block(game=self, spawn_at=-700)
         self.objects.append(active_block)
 
-        while not self.should_exit:
+        while not self.has_died:
             for event in pygame.event.get():
                 self.on_event(event)
 
@@ -199,6 +207,10 @@ class Game:
 
             self.update_display()
             self.clock.tick(60)
+
+        self.objects.clear()
+        self.key_action_callbacks.clear()
+        self.key_up_callbacks.clear()
 
 
 class Texture:
