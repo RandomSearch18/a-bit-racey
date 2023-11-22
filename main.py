@@ -158,7 +158,7 @@ class Game:
         large_font = pygame.font.Font("freesansbold.ttf", 115)
         text_surface, text_rect = self.create_text(text, large_font)
 
-        text_rect.center = self.window_box.center()
+        text_rect.center = self.window_box().center()
         self.surface.blit(text_surface, text_rect)
         self.update_display()
 
@@ -168,7 +168,7 @@ class Game:
     def update_display(self):
         pygame.display.update()
 
-    def on_crash(self):
+    def trigger_crash(self):
         self.car.reset()
         self.display_title("You died!")
 
@@ -414,7 +414,17 @@ class Car(GameObject):
 
     def check_collision_with_window_edge(self):
         if not self.is_within_window():
-            self.game.on_crash()
+            self.game.trigger_crash()
+
+    def check_collision_with_other_objects(self):
+        for object in self.game.objects:
+            collided = not self.collision_box().is_outside(
+                object.collision_box())
+            if not collided:
+                continue
+            if object == self:
+                continue
+            self.game.trigger_crash()
 
     def __init__(self, game: Game):
         self.game = game
@@ -425,6 +435,7 @@ class Car(GameObject):
 
         self.velocity = Velocity(self)
         self.tick_tasks.append(self.check_collision_with_window_edge)
+        self.tick_tasks.append(self.check_collision_with_other_objects)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
