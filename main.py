@@ -32,7 +32,6 @@ class NightTheme(DefaultTheme):
 
 
 class Box:
-
     def __init__(self, x1: float, y1: float, x2: float, y2: float):
         self.x1 = x1
         self.y1 = y1
@@ -66,26 +65,21 @@ class Box:
         return (center_x, center_y)
 
     def is_inside(self, other_box: Box) -> bool:
-        is_within_x = (self.left >= other_box.left
-                       and self.right <= other_box.right)
+        is_within_x = self.left >= other_box.left and self.right <= other_box.right
 
-        is_within_y = (self.top >= other_box.top
-                       and self.bottom <= other_box.bottom)
+        is_within_y = self.top >= other_box.top and self.bottom <= other_box.bottom
 
         return is_within_x and is_within_y
 
     def is_outside(self, other_box: Box) -> bool:
-        is_outside_x = (self.right < other_box.left
-                        or self.left > other_box.right)
+        is_outside_x = self.right < other_box.left or self.left > other_box.right
 
-        is_outside_y = (self.bottom < other_box.top
-                        or self.top > other_box.bottom)
+        is_outside_y = self.bottom < other_box.top or self.top > other_box.bottom
 
         return is_outside_x or is_outside_y
 
 
 class Game:
-
     def __init__(self, theme: type[DefaultTheme]):
         # Window display config
         self.theme = theme
@@ -104,10 +98,7 @@ class Game:
         self.key_up_callbacks = {}
 
         # Set up default keybinds
-        self.keybinds = {
-            pygame.K_LEFT: "move.left",
-            pygame.K_RIGHT: "move.right"
-        }
+        self.keybinds = {pygame.K_LEFT: "move.left", pygame.K_RIGHT: "move.right"}
 
         pygame.init()
 
@@ -154,7 +145,6 @@ class Game:
         self.key_up_callbacks[event.key] = lambda: on_key_up(event)
 
     def on_key_action(self, action: str):
-
         def decorator(callback):
             self.key_action_callbacks[action] = callback
 
@@ -212,7 +202,6 @@ class Game:
 
 
 class Texture:
-
     def __init__(self, width, height):
         self.base_width = width
         self.base_height = height
@@ -228,22 +217,20 @@ class Texture:
 
 
 class PlainColorTexture(Texture):
-
-    def __init__(self, game: Game, color: Tuple[float, float, float], width,
-                 height):
+    def __init__(self, game: Game, color: Tuple[float, float, float], width, height):
         self.game = game
         self.color = color
         super().__init__(width, height)
 
     def draw_at(self, start_x, start_y):
         pygame.draw.rect(
-            self.game.surface, self.color,
-            [start_x, start_y, self.width(),
-             self.height()])
+            self.game.surface,
+            self.color,
+            [start_x, start_y, self.width(), self.height()],
+        )
 
 
 class ImageTexture(Texture):
-
     def __init__(self, game, image):
         self.game = game
         self.image = image
@@ -257,7 +244,6 @@ class ImageTexture(Texture):
 
 
 class GameObject:
-
     def height(self) -> float:
         return self.texture.height()
 
@@ -272,8 +258,7 @@ class GameObject:
         spawn_point = self.spawn_point()
         self.x, self.y = spawn_point
 
-    def __init__(self, texture: Texture,
-                 window_resize_handler: WindowResizeHandler):
+    def __init__(self, texture: Texture, window_resize_handler: WindowResizeHandler):
         assert hasattr(self, "game")
         assert isinstance(self.game, Game)
         self.game: Game = self.game
@@ -289,8 +274,7 @@ class GameObject:
         for callback in self.tick_tasks:
             callback()
 
-    def calculate_center_bounds(self, parent_width: float,
-                                parent_height: float) -> Box:
+    def calculate_center_bounds(self, parent_width: float, parent_height: float) -> Box:
         """Calculates the box of possible positions for the center point of this object"""
         x_padding = self.width() / 2
         y_padding = self.height() / 2
@@ -311,10 +295,9 @@ class GameObject:
 
         return Box(x1, y1, x2, y2)
 
-    def calculate_position_percentage(self,
-                                      bounds: Box) -> Tuple[float, float]:
+    def calculate_position_percentage(self, bounds: Box) -> Tuple[float, float]:
         """Calculates the position of the center of the object, returning coordinates in the form (x, y)
-        
+
         - Coordinates are scaled from 0.0 to 1.0 to represent percentage relative to the provided bounding box
         """
         center_x, center_y = self.collision_box().center()
@@ -349,7 +332,6 @@ class GameObject:
 
 
 class WindowResizeHandler:
-
     def __init__(self, game_object: GameObject):
         self.object = game_object
 
@@ -363,22 +345,23 @@ class WindowResizeHandler:
 
 
 class LinearPositionScaling(WindowResizeHandler):
-
     def __init__(self, game_object: GameObject):
         super().__init__(game_object)
 
     def get_new_position(self, event) -> Tuple[float, float]:
         old_center_point_bounds = self.object.calculate_center_bounds(
-            *event.old_dimensions)
+            *event.old_dimensions
+        )
         position_percentage = self.object.calculate_position_percentage(
-            old_center_point_bounds)
+            old_center_point_bounds
+        )
         print("Was at", position_percentage)
 
         # Update object's position to be the in the same place relative to the window size
-        new_center_point_bounds = self.object.calculate_center_bounds(
-            event.w, event.h)
+        new_center_point_bounds = self.object.calculate_center_bounds(event.w, event.h)
         new_center = self.object.map_relative_position_to_box(
-            position_percentage, new_center_point_bounds)
+            position_percentage, new_center_point_bounds
+        )
         new_x = new_center[0] - self.object.width() / 2
         new_y = new_center[1] - self.object.height() / 2
 
@@ -386,7 +369,6 @@ class LinearPositionScaling(WindowResizeHandler):
 
 
 class Velocity:
-
     def on_tick(self):
         x_movement = self.x
         y_movement = self.y
@@ -404,7 +386,6 @@ class Velocity:
 
 
 class Car(GameObject):
-
     def calculate_starting_x(self):
         window_width = self.game.width()
 
@@ -422,8 +403,11 @@ class Car(GameObject):
         return screen_height - (car_height + padding)
 
     def get_texture_image(self):
-        return (Asset.CAR_IMAGE_ALT
-                if self.game.theme.ALTERNATE_TEXTURES else Asset.CAR_IMAGE)
+        return (
+            Asset.CAR_IMAGE_ALT
+            if self.game.theme.ALTERNATE_TEXTURES
+            else Asset.CAR_IMAGE
+        )
 
     def spawn_point(self) -> Tuple[float, float]:
         return (self.calculate_starting_x(), self.calculate_starting_y())
@@ -435,8 +419,9 @@ class Car(GameObject):
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
-        super().__init__(texture=texture,
-                         window_resize_handler=LinearPositionScaling(self))
+        super().__init__(
+            texture=texture, window_resize_handler=LinearPositionScaling(self)
+        )
 
         self.velocity = Velocity(self)
         self.tick_tasks.append(self.check_collision_with_window_edge)
@@ -444,7 +429,6 @@ class Car(GameObject):
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
         def start_moving_left(event):
-
             def undo(event):
                 self.velocity.x = 0
                 print("Left stopped")
@@ -455,7 +439,6 @@ class Car(GameObject):
 
         @game.on_key_action("move.right")
         def start_moving_right(event):
-
             def undo(event):
                 self.velocity.x = 0
                 print("Right stopped")
@@ -469,7 +452,6 @@ class Car(GameObject):
 
 
 class Block(GameObject):
-
     def spawn_point(self) -> Tuple[float, float]:
         return (self.spawn_at_x, self.spawn_at_y)
 
@@ -483,10 +465,10 @@ class Block(GameObject):
         self.game = game
         self.spawn_at_x = random.randrange(0, self.game.width())
         self.spawn_at_y = spawn_at
-        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50,
-                                    50)
-        super().__init__(texture=texture,
-                         window_resize_handler=LinearPositionScaling(self))
+        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50, 50)
+        super().__init__(
+            texture=texture, window_resize_handler=LinearPositionScaling(self)
+        )
         self.velocity = Velocity(self)
         self.velocity.y = 5
 
