@@ -58,6 +58,9 @@ class PointSpecifier:
     def move_down(self, pixels: float):
         raise NotImplementedError()
 
+    def move_to(self, absolute_coordinates: Tuple[float, float]):
+        raise NotImplementedError()
+
 
 class PixelsPoint(PointSpecifier):
     def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
@@ -108,6 +111,33 @@ class PixelsPoint(PointSpecifier):
         y_corner = self.relative_to.value[1]
         pixel_movement = +pixels if y_corner else -pixels
         self.y += pixel_movement
+
+    def move_to(
+        self, target_coordinates: Tuple[float, float], width: float, height: float
+    ):
+        target_x, target_y = target_coordinates
+        outer_width = game.window_box().width
+        outer_height = game.window_box().height
+        multiplier_x, multiplier_y = self.relative_to.value
+
+        # Coordinates of the window corner that we're working relative to
+        base_x_coordinate = multiplier_x * outer_width
+        base_y_coordinate = multiplier_y * outer_height
+
+        # Calculate the number of pixels away from the corner that we should be at
+        x_difference = target_x - base_x_coordinate
+        y_difference = target_y - base_y_coordinate
+
+        # The differences should be measured from the corresponding corner of our object,
+        # e.g. from object.top_right to window.top_right
+        x_difference += width * multiplier_x
+        y_difference += height * multiplier_y
+
+        # Coordinates should be in the direction away from the outer box's chosen corner
+        new_x = -x_difference if multiplier_x else +x_difference
+        new_y = -y_difference if multiplier_y else +y_difference
+
+        self.x, self.y = new_x, new_y
 
 
 class Box:
@@ -206,6 +236,8 @@ class Game:
         elif event.type == pygame.VIDEORESIZE:
             event.old_dimensions = self.old_window_dimensions
             for object in self.objects:
+                if not object.window_resize_handler:
+                    continue
                 object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
         elif event.type == pygame.KEYDOWN:
@@ -410,7 +442,10 @@ class GameObject:
         # self.x, self.y = spawn_point.resolve(self.game, self.width(), self.height())
 
     def __init__(
-        self, texture: Texture, window_resize_handler: WindowResizeHandler, solid=True
+        self,
+        texture: Texture,
+        window_resize_handler: Optional[WindowResizeHandler] = None,
+        solid=True,
     ):
         assert hasattr(self, "game")
         assert isinstance(self.game, Game)
@@ -496,7 +531,9 @@ class WindowResizeHandler:
 
     def handle_window_resize(self, event):
         new_position = self.get_new_position(event)
-        self.object.x, self.object.y = new_position
+        self.object.position.move_to(
+            new_position, self.object.width(), self.object.height()
+        )
         self.object.draw()
 
 
@@ -658,9 +695,7 @@ class FPSCounter(GameObject):
         self.spawn_point = lambda: spawn_point
         texture = TextTexture(game, self.get_text, self.font)
 
-        super().__init__(
-            texture=texture, window_resize_handler=LinearPositionScaling(self)
-        )
+        super().__init__(texture=texture)
 
 
 game = Game(theme=NightTheme)
