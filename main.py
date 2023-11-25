@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum
 from typing import Callable, Literal, Optional, Tuple
 import pygame
 import math
@@ -32,6 +33,42 @@ class NightTheme(DefaultTheme):
     BACKGROUND = Color.ASPHALT
     FOREGROUND = Color.WHITE
     FOREGROUND_BAD = Color.RED
+
+
+class Corner(Enum):
+    TOP_LEFT = (0, 0)
+    TOP_RIGHT = (1, 0)
+    BOTOM_LEFT = (0, 1)
+    BOTOM_RIGHT = (1, 1)
+
+
+class PointSpecifier:
+    def resolve(self, game: Game) -> Tuple[float, float]:
+        raise NotImplementedError()
+
+
+class PixelsPoint(PointSpecifier):
+    def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
+        self.x = x
+        self.y = y
+        self.relative_to = relative_to
+
+    def resolve(self, game: Game) -> Tuple[float, float]:
+        outer_width = game.window_box().width
+        outer_height = game.window_box().height
+        multiplier_x, multiplier_y = self.relative_to.value
+
+        base_x_coordinate = multiplier_x * outer_width
+        base_y_coordinate = multiplier_y * outer_height
+
+        x_offset = -self.x if multiplier_x else +self.x
+        y_offset = -self.y if multiplier_y else +self.y
+
+        actual_x_coordinate = base_x_coordinate + x_offset
+        actual_y_coordinate = base_y_coordinate + y_offset
+
+        print(actual_x_coordinate, actual_y_coordinate)
+        return (actual_x_coordinate, actual_y_coordinate)
 
 
 class Box:
@@ -192,7 +229,9 @@ class Game:
         active_block = Block(game=self, spawn_at=-700)
         self.objects.append(active_block)
 
-        self.fps_counter = FPSCounter(game=self, spawn_point=(0, 100))
+        self.fps_counter = FPSCounter(
+            game=self, spawn_point=PixelsPoint(100, 0, Corner.TOP_RIGHT)
+        )
         self.objects.append(self.fps_counter)
 
         while not self.has_died and not self.exited:
@@ -318,12 +357,12 @@ class GameObject:
     def width(self) -> float:
         return self.texture.width()
 
-    def spawn_point(self) -> Tuple[float, float]:
+    def spawn_point(self) -> PointSpecifier:
         raise NotImplementedError()
 
     def reset(self):
         """Moves the object to its initial position (spawn point)"""
-        spawn_point = self.spawn_point()
+        spawn_point = self.spawn_point().resolve(self.game)
         self.x, self.y = spawn_point
 
     def __init__(
@@ -480,8 +519,8 @@ class Car(GameObject):
             else Asset.CAR_IMAGE
         )
 
-    def spawn_point(self) -> Tuple[float, float]:
-        return (self.calculate_starting_x(), self.calculate_starting_y())
+    def spawn_point(self) -> PointSpecifier:
+        return PixelsPoint(self.calculate_starting_x(), self.calculate_starting_y())
 
     def check_collision_with_window_edge(self):
         if not self.is_within_window():
@@ -535,8 +574,8 @@ class Car(GameObject):
 
 
 class Block(GameObject):
-    def spawn_point(self) -> Tuple[float, float]:
-        return (self.spawn_at_x, self.spawn_at_y)
+    def spawn_point(self) -> PointSpecifier:
+        return PixelsPoint(self.spawn_at_x, self.spawn_at_y)
 
     def tick(self):
         pass
@@ -563,17 +602,14 @@ class FPSCounter(GameObject):
     def draw(self):
         self.texture.draw_at(self.x, self.y)
 
-    def spawn_point(self):
-        return self._spawn_point
-
     def get_text(self) -> str:
         fps = self.game.clock.get_fps()
         return f"{fps:.0f} FPS"
 
-    def __init__(self, game: Game, spawn_point: Tuple[float, float]):
+    def __init__(self, game: Game, spawn_point: PointSpecifier):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
-        self._spawn_point = spawn_point
+        self.spawn_point = lambda: spawn_point
         texture = TextTexture(game, self.get_text, self.font)
 
         super().__init__(
