@@ -260,10 +260,15 @@ class TextTexture(Texture):
     def height(self) -> float:
         return self.current_rect.height
 
+    def get_content(self):
+        provided_content = self._get_content()
+        if isinstance(provided_content, str):
+            return (provided_content, self.game.theme.FOREGROUND)
+        return provided_content
+
     def render_text(self, start_x: float, start_y: float):
         """Computes a surface and bounding rect for the text, but doesn't draw it to the screen"""
-        text_content = self.get_text()
-        text_color = self.get_color()
+        text_content, text_color = self.get_content()
         use_antialiasing = True
         text_surface = self.font.render(text_content, use_antialiasing, text_color)
 
@@ -273,22 +278,15 @@ class TextTexture(Texture):
 
         return text_surface, text_rect
 
-    def get_rect(self, start_x: float, start_y: float) -> pygame.Rect:
-        text = self.game.create_text(self.get_text(), self.font)
-        rect: pygame.Rect = text[1]
-
-        rect.topleft = (math.floor(start_x), math.floor(start_y))
-        return rect
-
     def __init__(
         self,
         game: Game,
-        get_text: Callable[[], str],
+        get_content: Callable[[], str | Tuple[str, Tuple[float, float, float]]],
         font: pygame.font.Font,
         get_color: Optional[Callable[[], Tuple[float, float, float]]] = None,
     ):
         self.game = game
-        self.get_text = get_text
+        self._get_content = get_content
         self.font = font
         self.get_color = get_color or (lambda: self.game.theme.FOREGROUND)
         self.current_rect = self.render_text(0, 0)[1]
@@ -576,7 +574,7 @@ class FPSCounter(GameObject):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
         self._spawn_point = spawn_point
-        texture = TextTexture(game, self.get_text, self.font, self.get_color)
+        texture = TextTexture(game, self.get_text, self.font)
 
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
