@@ -8,7 +8,7 @@ This is our first Pygame project. It is based on the tutorial at <https://python
 
 Start by cloning this repository to a folder of your choice. Commands in this guide assume the working directory is set to the root of this repository.
 
-In general, you'll need Python 3.9 or above, and the `pygame` Python package available. For the platforms that I've tested the game on, there are some specific instructions below.
+In general, you'll need Python 3.8 or above, and the `pygame` Python package available. For the platforms that I've tested the game on, there are some specific instructions below.
 
 ### PostmarketOS
 
@@ -16,5 +16,14 @@ Note: This should also work for Alpine Linux in general, although you may have t
 
 ```sh
 $ sudo apk add python3 py3-pygame
+$ python3 main.py
+```
+
+### Zorin OS
+
+These instructions should also work on Ubuntu 20.04 LTS, which Zorin OS is based on.
+
+```sh
+$ sudo apt install python3 python3-pygame
 $ python3 main.py
 ```
