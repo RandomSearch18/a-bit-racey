@@ -68,7 +68,7 @@ class PixelsPoint(PointSpecifier):
 
         # Account for the x/y offsets not always measuring from our top-left
         x_offset -= width * multiplier_x
-        y_offset -= width * multiplier_y
+        y_offset -= height * multiplier_y
 
         # Calculate the desired coordinates of the top-left of our object
         actual_x_coordinate = base_x_coordinate + x_offset
