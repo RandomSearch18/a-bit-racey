@@ -563,7 +563,8 @@ class FPSCounter(GameObject):
         return self._spawn_point
 
     def get_text(self) -> str:
-        return "60! FPS"
+        fps = self.game.clock.get_fps()
+        return f"{fps:.0f} FPS"
 
     def __init__(self, game: Game, spawn_point: Tuple[float, float]):
         self.game = game
