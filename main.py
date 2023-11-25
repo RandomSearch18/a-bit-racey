@@ -150,7 +150,7 @@ class Game:
 
         return decorator
 
-    def create_text(self, text, font):
+    def create_text(self, text: str, font: pygame.font.Font):
         surface = font.render(text, True, self.theme.FOREGROUND)
         return surface, surface.get_rect()
 
@@ -184,8 +184,12 @@ class Game:
         self.car = Car(game=self)
         self.objects.append(self.car)
 
+        # first_block_position = self.window_box().width * 0.5
         active_block = Block(game=self, spawn_at=-700)
         self.objects.append(active_block)
+
+        self.fps_counter = FPSCounter(game=self, spawn_point=(0, 100))
+        self.objects.append(self.fps_counter)
 
         while not self.has_died and not self.exited:
             for event in pygame.event.get():
@@ -207,6 +211,9 @@ class Game:
 
             self.update_display()
             self.clock.tick(60)
+
+            # miliseconds_per_frame = self.clock.get_rawtime()
+            # print(miliseconds_per_frame)
 
         self.objects.clear()
         self.key_action_callbacks.clear()
@@ -242,6 +249,38 @@ class PlainColorTexture(Texture):
         )
 
 
+class TextTexture(Texture):
+    def width(self) -> float:
+        return self.get_box().width
+
+    def height(self) -> float:
+        return self.get_box().height
+
+    def get_box(self):
+        text = self.game.create_text(self.get_text(), self.font)
+        rect: pygame.Rect = text[1]
+
+        return Box(rect.left, rect.top, rect.right, rect.bottom)
+
+    def __init__(
+        self,
+        game: Game,
+        get_text: Callable[[], str],
+        font: pygame.font.Font,
+    ):
+        self.game = game
+        self.get_text = get_text
+        self.font = font
+        super().__init__(self.width(), self.height())
+
+    def draw_at(self, start_x, start_y):
+        text_content = self.get_text()
+        text_surface, text_rect = self.game.create_text(text_content, self.font)
+
+        # text_rect.center = self.game.window_box().center()
+        self.game.surface.blit(text_surface, text_rect)
+
+
 class ImageTexture(Texture):
     def __init__(self, game, image):
         self.game = game
@@ -270,13 +309,16 @@ class GameObject:
         spawn_point = self.spawn_point()
         self.x, self.y = spawn_point
 
-    def __init__(self, texture: Texture, window_resize_handler: WindowResizeHandler):
+    def __init__(
+        self, texture: Texture, window_resize_handler: WindowResizeHandler, solid=True
+    ):
         assert hasattr(self, "game")
         assert isinstance(self.game, Game)
         self.game: Game = self.game
         self.tick_tasks: list[Callable] = []
         self.texture = texture
         self.window_resize_handler = window_resize_handler
+        self.is_solid = solid
         self.reset()
 
     def draw(self):
@@ -430,6 +472,8 @@ class Car(GameObject):
 
     def check_collision_with_other_objects(self):
         for object in self.game.objects:
+            if not object.is_solid:
+                continue
             collided = not self.collision_box().is_outside(object.collision_box())
             if not collided:
                 continue
@@ -493,6 +537,30 @@ class Block(GameObject):
         )
         self.velocity = Velocity(self)
         self.velocity.y = 5
+
+
+class FPSCounter(GameObject):
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.x, self.y)
+
+    def spawn_point(self):
+        return self._spawn_point
+
+    def get_text(self) -> str:
+        return "60! FPS"
+
+    def __init__(self, game: Game, spawn_point: Tuple[float, float]):
+        self.game = game
+        self.font = pygame.font.Font("freesansbold.ttf", 12)
+        self._spawn_point = spawn_point
+        texture = TextTexture(game, self.get_text, self.font)
+
+        super().__init__(
+            texture=texture, window_resize_handler=LinearPositionScaling(self)
+        )
 
 
 game = Game(theme=NightTheme)
