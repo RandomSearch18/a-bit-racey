@@ -90,6 +90,7 @@ class Game:
         pygame.display.set_caption("A bit Racey")
 
         # Initialise other game components
+        self.MAX_FPS = 60
         self.clock = pygame.time.Clock()
         self.has_died = False
         self.objects: list[GameObject] = []
@@ -210,7 +211,7 @@ class Game:
                 object.draw()
 
             self.update_display()
-            self.clock.tick(60)
+            self.clock.tick(self.MAX_FPS)
 
             # miliseconds_per_frame = self.clock.get_rawtime()
             # print(miliseconds_per_frame)
