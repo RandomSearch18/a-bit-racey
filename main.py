@@ -15,6 +15,7 @@ class Asset:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
+    RED = (255, 255, 255)
     # From color palette at https://colorcodes.io/gray/asphalt-gray-color-codes/
     ASPHALT = (38, 40, 51)
 
@@ -23,12 +24,14 @@ class DefaultTheme:
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.WHITE
     FOREGROUND = Color.BLACK
+    FOREGROUND_BAD = Color.RED
 
 
 class NightTheme(DefaultTheme):
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.ASPHALT
     FOREGROUND = Color.WHITE
+    FOREGROUND_BAD = Color.RED
 
 
 class Box:
@@ -260,7 +263,9 @@ class TextTexture(Texture):
     def render_text(self, start_x: float, start_y: float):
         """Computes a surface and bounding rect for the text, but doesn't draw it to the screen"""
         text_content = self.get_text()
-        text_surface = self.font.render(text_content, True, self.color)
+        text_color = self.get_color()
+        use_antialiasing = True
+        text_surface = self.font.render(text_content, use_antialiasing, text_color)
 
         text_rect = text_surface.get_rect()
         text_rect.left = math.floor(start_x)
@@ -280,12 +285,12 @@ class TextTexture(Texture):
         game: Game,
         get_text: Callable[[], str],
         font: pygame.font.Font,
-        color: Optional[Tuple[float, float, float]] = None,
+        get_color: Optional[Callable[[], Tuple[float, float, float]]] = None,
     ):
         self.game = game
         self.get_text = get_text
         self.font = font
-        self.color = color or self.game.theme.FOREGROUND
+        self.get_color = get_color or (lambda: self.game.theme.FOREGROUND)
         self.current_rect = self.render_text(0, 0)[1]
         super().__init__(self.width(), self.height())
 
@@ -571,7 +576,7 @@ class FPSCounter(GameObject):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
         self._spawn_point = spawn_point
-        texture = TextTexture(game, self.get_text, self.font)
+        texture = TextTexture(game, self.get_text, self.font, self.get_color)
 
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
