@@ -53,17 +53,24 @@ class PixelsPoint(PointSpecifier):
         self.y = y
         self.relative_to = relative_to
 
-    def resolve(self, game: Game) -> Tuple[float, float]:
+    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
         outer_width = game.window_box().width
         outer_height = game.window_box().height
         multiplier_x, multiplier_y = self.relative_to.value
 
+        # Coordinates of the window corner that we're working relative to
         base_x_coordinate = multiplier_x * outer_width
         base_y_coordinate = multiplier_y * outer_height
 
+        # Calculate the number of pixels away from the corner that we should be at
         x_offset = -self.x if multiplier_x else +self.x
         y_offset = -self.y if multiplier_y else +self.y
 
+        # Account for the x/y offsets not always measuring from our top-left
+        x_offset -= width * multiplier_x
+        y_offset -= width * multiplier_y
+
+        # Calculate the desired coordinates of the top-left of our object
         actual_x_coordinate = base_x_coordinate + x_offset
         actual_y_coordinate = base_y_coordinate + y_offset
 
@@ -230,7 +237,7 @@ class Game:
         self.objects.append(active_block)
 
         self.fps_counter = FPSCounter(
-            game=self, spawn_point=PixelsPoint(100, 0, Corner.TOP_RIGHT)
+            game=self, spawn_point=PixelsPoint(0, 0, Corner.TOP_RIGHT)
         )
         self.objects.append(self.fps_counter)
 
@@ -362,7 +369,7 @@ class GameObject:
 
     def reset(self):
         """Moves the object to its initial position (spawn point)"""
-        spawn_point = self.spawn_point().resolve(self.game)
+        spawn_point = self.spawn_point().resolve(self.game, self.width(), self.height())
         self.x, self.y = spawn_point
 
     def __init__(
