@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Callable, Literal, Tuple
+from enum import Enum
+from typing import Callable, Literal, Optional, Tuple
 import pygame
 import math
 import random
@@ -15,6 +16,7 @@ class Asset:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
+    RED = (255, 255, 255)
     # From color palette at https://colorcodes.io/gray/asphalt-gray-color-codes/
     ASPHALT = (38, 40, 51)
 
@@ -23,12 +25,119 @@ class DefaultTheme:
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.WHITE
     FOREGROUND = Color.BLACK
+    FOREGROUND_BAD = Color.RED
 
 
 class NightTheme(DefaultTheme):
     ALTERNATE_TEXTURES = False
     BACKGROUND = Color.ASPHALT
     FOREGROUND = Color.WHITE
+    FOREGROUND_BAD = Color.RED
+
+
+class Corner(Enum):
+    TOP_LEFT = (0, 0)
+    TOP_RIGHT = (1, 0)
+    BOTOM_LEFT = (0, 1)
+    BOTOM_RIGHT = (1, 1)
+
+
+class PointSpecifier:
+    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+        raise NotImplementedError()
+
+    def move_left(self, pixels: float):
+        raise NotImplementedError()
+
+    def move_right(self, pixels: float):
+        raise NotImplementedError()
+
+    def move_up(self, pixels: float):
+        raise NotImplementedError()
+
+    def move_down(self, pixels: float):
+        raise NotImplementedError()
+
+    def move_to(self, absolute_coordinates: Tuple[float, float]):
+        raise NotImplementedError()
+
+
+class PixelsPoint(PointSpecifier):
+    def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
+        self.x = x
+        self.y = y
+        self.relative_to = relative_to
+
+    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+        outer_width = game.window_box().width
+        outer_height = game.window_box().height
+        multiplier_x, multiplier_y = self.relative_to.value
+
+        # Coordinates of the window corner that we're working relative to
+        base_x_coordinate = multiplier_x * outer_width
+        base_y_coordinate = multiplier_y * outer_height
+
+        # Calculate the number of pixels away from the corner that we should be at
+        x_offset = -self.x if multiplier_x else +self.x
+        y_offset = -self.y if multiplier_y else +self.y
+
+        # Account for the x/y offsets not always measuring from our top-left
+        x_offset -= width * multiplier_x
+        y_offset -= height * multiplier_y
+
+        # Calculate the desired coordinates of the top-left of our object
+        actual_x_coordinate = base_x_coordinate + x_offset
+        actual_y_coordinate = base_y_coordinate + y_offset
+
+        # print(actual_x_coordinate, actual_y_coordinate)
+        return (actual_x_coordinate, actual_y_coordinate)
+
+    def move_right(self, pixels: float):
+        x_corner = self.relative_to.value[0]
+        pixel_movement = -pixels if x_corner else +pixels
+        self.x += pixel_movement
+
+    def move_left(self, pixels: float):
+        x_corner = self.relative_to.value[0]
+        pixel_movement = +pixels if x_corner else -pixels
+        self.x += pixel_movement
+
+    def move_down(self, pixels: float):
+        y_corner = self.relative_to.value[1]
+        pixel_movement = -pixels if y_corner else +pixels
+        self.y += pixel_movement
+
+    def move_up(self, pixels: float):
+        y_corner = self.relative_to.value[1]
+        pixel_movement = +pixels if y_corner else -pixels
+        self.y += pixel_movement
+
+    def move_to(
+        self, target_coordinates: Tuple[float, float], width: float, height: float
+    ):
+        target_x, target_y = target_coordinates
+        outer_width = game.window_box().width
+        outer_height = game.window_box().height
+        multiplier_x, multiplier_y = self.relative_to.value
+
+        # Coordinates of the window corner that we're working relative to
+        base_x_coordinate = multiplier_x * outer_width
+        base_y_coordinate = multiplier_y * outer_height
+
+        # Calculate the number of pixels away from the corner that we should be at
+        x_difference = target_x - base_x_coordinate
+        y_difference = target_y - base_y_coordinate
+
+        # The differences should be measured from the corresponding corner of our object,
+        # e.g. from object.top_right to window.top_right
+        x_difference += width * multiplier_x
+        y_difference += height * multiplier_y
+
+        # Coordinates should be in the direction away from the outer box's chosen corner
+        new_x = -x_difference if multiplier_x else +x_difference
+        new_y = -y_difference if multiplier_y else +y_difference
+
+        self.x, self.y = new_x, new_y
 
 
 class Box:
@@ -90,6 +199,7 @@ class Game:
         pygame.display.set_caption("A bit Racey")
 
         # Initialise other game components
+        self.MAX_FPS = 60
         self.clock = pygame.time.Clock()
         self.has_died = False
         self.objects: list[GameObject] = []
@@ -126,6 +236,8 @@ class Game:
         elif event.type == pygame.VIDEORESIZE:
             event.old_dimensions = self.old_window_dimensions
             for object in self.objects:
+                if not object.window_resize_handler:
+                    continue
                 object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
         elif event.type == pygame.KEYDOWN:
@@ -150,7 +262,7 @@ class Game:
 
         return decorator
 
-    def create_text(self, text, font):
+    def create_text(self, text: str, font: pygame.font.Font):
         surface = font.render(text, True, self.theme.FOREGROUND)
         return surface, surface.get_rect()
 
@@ -184,8 +296,14 @@ class Game:
         self.car = Car(game=self)
         self.objects.append(self.car)
 
+        # first_block_position = self.window_box().width * 0.5
         active_block = Block(game=self, spawn_at=-700)
         self.objects.append(active_block)
+
+        self.fps_counter = FPSCounter(
+            game=self, spawn_point=PixelsPoint(0, 0, Corner.TOP_RIGHT)
+        )
+        self.objects.append(self.fps_counter)
 
         while not self.has_died and not self.exited:
             for event in pygame.event.get():
@@ -195,7 +313,7 @@ class Game:
             self.surface.fill(self.background_color)
 
             # Spawn a new block if the old one has passed the bottom screen edge
-            if active_block.y > self.height():
+            if active_block.coordinates()[1] > self.height():
                 self.objects.remove(active_block)
                 active_block = Block(game=self, spawn_at=-20)
                 self.objects.append(active_block)
@@ -206,7 +324,10 @@ class Game:
                 object.draw()
 
             self.update_display()
-            self.clock.tick(60)
+            self.clock.tick(self.MAX_FPS)
+
+            # miliseconds_per_frame = self.clock.get_rawtime()
+            # print(miliseconds_per_frame)
 
         self.objects.clear()
         self.key_action_callbacks.clear()
@@ -224,7 +345,7 @@ class Texture:
     def width(self) -> float:
         return self.base_width
 
-    def draw_at(self, start_x, start_y):
+    def draw_at(self, top_left: PointSpecifier):
         pass
 
 
@@ -234,12 +355,60 @@ class PlainColorTexture(Texture):
         self.color = color
         super().__init__(width, height)
 
-    def draw_at(self, start_x, start_y):
+    def draw_at(self, top_left):
+        x1, y1 = top_left.resolve(self.game, self.width(), self.height())
+
         pygame.draw.rect(
             self.game.surface,
             self.color,
-            [start_x, start_y, self.width(), self.height()],
+            [x1, y1, self.width(), self.height()],
         )
+
+
+class TextTexture(Texture):
+    def width(self) -> float:
+        return self.current_rect.width
+
+    def height(self) -> float:
+        return self.current_rect.height
+
+    def get_content(self):
+        provided_content = self._get_content()
+        if isinstance(provided_content, str):
+            return (provided_content, self.game.theme.FOREGROUND)
+        return provided_content
+
+    def render_text(self, start_x: float, start_y: float):
+        """Computes a surface and bounding rect for the text, but doesn't draw it to the screen"""
+        text_content, text_color = self.get_content()
+        use_antialiasing = True
+        text_surface = self.font.render(text_content, use_antialiasing, text_color)
+
+        text_rect = text_surface.get_rect()
+        text_rect.left = math.floor(start_x)
+        text_rect.top = math.floor(start_y)
+
+        return text_surface, text_rect
+
+    def __init__(
+        self,
+        game: Game,
+        get_content: Callable[[], str | Tuple[str, Tuple[float, float, float]]],
+        font: pygame.font.Font,
+        get_color: Optional[Callable[[], Tuple[float, float, float]]] = None,
+    ):
+        self.game = game
+        self._get_content = get_content
+        self.font = font
+        self.get_color = get_color or (lambda: self.game.theme.FOREGROUND)
+        self.current_rect = self.render_text(0, 0)[1]
+        super().__init__(self.width(), self.height())
+
+    def draw_at(self, top_left: PointSpecifier):
+        start_x, start_y = top_left.resolve(self.game, self.width(), self.height())
+        text_surface, text_rect = self.render_text(start_x, start_y)
+        self.current_rect = text_rect
+        self.game.surface.blit(text_surface, text_rect)
 
 
 class ImageTexture(Texture):
@@ -251,7 +420,8 @@ class ImageTexture(Texture):
         height = self.image.get_height()
         super().__init__(width, height)
 
-    def draw_at(self, start_x, start_y):
+    def draw_at(self, top_left: PointSpecifier):
+        start_x, start_y = top_left.resolve(self.game, self.width(), self.height())
         self.game.surface.blit(self.image, (start_x, start_y))
 
 
@@ -262,21 +432,28 @@ class GameObject:
     def width(self) -> float:
         return self.texture.width()
 
-    def spawn_point(self) -> Tuple[float, float]:
+    def spawn_point(self) -> PointSpecifier:
         raise NotImplementedError()
 
     def reset(self):
         """Moves the object to its initial position (spawn point)"""
         spawn_point = self.spawn_point()
-        self.x, self.y = spawn_point
+        self.position = spawn_point
+        # self.x, self.y = spawn_point.resolve(self.game, self.width(), self.height())
 
-    def __init__(self, texture: Texture, window_resize_handler: WindowResizeHandler):
+    def __init__(
+        self,
+        texture: Texture,
+        window_resize_handler: Optional[WindowResizeHandler] = None,
+        solid=True,
+    ):
         assert hasattr(self, "game")
         assert isinstance(self.game, Game)
         self.game: Game = self.game
         self.tick_tasks: list[Callable] = []
         self.texture = texture
         self.window_resize_handler = window_resize_handler
+        self.is_solid = solid
         self.reset()
 
     def draw(self):
@@ -300,10 +477,9 @@ class GameObject:
 
     def collision_box(self) -> Box:
         """Calculates the visual bounding box (i.e. collision box) for this object"""
-        x1 = self.x
-        y1 = self.y
-        x2 = self.x + self.width()
-        y2 = self.y + self.height()
+        x1, y1 = self.position.resolve(self.game, self.width(), self.height())
+        x2 = x1 + self.width()
+        y2 = y1 + self.height()
 
         return Box(x1, y1, x2, y2)
 
@@ -342,6 +518,9 @@ class GameObject:
         window = self.game.window_box()
         return self.collision_box().is_outside(window)
 
+    def coordinates(self):
+        return self.position.resolve(self.game, self.width(), self.height())
+
 
 class WindowResizeHandler:
     def __init__(self, game_object: GameObject):
@@ -352,7 +531,9 @@ class WindowResizeHandler:
 
     def handle_window_resize(self, event):
         new_position = self.get_new_position(event)
-        self.object.x, self.object.y = new_position
+        self.object.position.move_to(
+            new_position, self.object.width(), self.object.height()
+        )
         self.object.draw()
 
 
@@ -385,8 +566,8 @@ class Velocity:
         x_movement = self.x
         y_movement = self.y
 
-        self.object.x += x_movement
-        self.object.y += y_movement
+        self.object.position.move_right(x_movement)
+        self.object.position.move_down(y_movement)
 
     def __init__(self, game_object: GameObject):
         # Magnitudes of velocity, measured in pixels/tick
@@ -421,8 +602,8 @@ class Car(GameObject):
             else Asset.CAR_IMAGE
         )
 
-    def spawn_point(self) -> Tuple[float, float]:
-        return (self.calculate_starting_x(), self.calculate_starting_y())
+    def spawn_point(self) -> PointSpecifier:
+        return PixelsPoint(self.calculate_starting_x(), self.calculate_starting_y())
 
     def check_collision_with_window_edge(self):
         if not self.is_within_window():
@@ -430,6 +611,8 @@ class Car(GameObject):
 
     def check_collision_with_other_objects(self):
         for object in self.game.objects:
+            if not object.is_solid:
+                continue
             collided = not self.collision_box().is_outside(object.collision_box())
             if not collided:
                 continue
@@ -470,18 +653,18 @@ class Car(GameObject):
             return undo
 
     def draw(self):
-        self.texture.draw_at(self.x, self.y)
+        self.texture.draw_at(self.position)
 
 
 class Block(GameObject):
-    def spawn_point(self) -> Tuple[float, float]:
-        return (self.spawn_at_x, self.spawn_at_y)
+    def spawn_point(self) -> PointSpecifier:
+        return PixelsPoint(self.spawn_at_x, self.spawn_at_y)
 
     def tick(self):
         pass
 
     def draw(self):
-        self.texture.draw_at(self.x, self.y)
+        self.texture.draw_at(self.position)
 
     def __init__(self, game: Game, spawn_at: float = 0):
         self.game = game
@@ -493,6 +676,26 @@ class Block(GameObject):
         )
         self.velocity = Velocity(self)
         self.velocity.y = 5
+
+
+class FPSCounter(GameObject):
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.position)
+
+    def get_text(self) -> str:
+        fps = self.game.clock.get_fps()
+        return f"{fps:.0f} FPS"
+
+    def __init__(self, game: Game, spawn_point: PointSpecifier):
+        self.game = game
+        self.font = pygame.font.Font("freesansbold.ttf", 12)
+        self.spawn_point = lambda: spawn_point
+        texture = TextTexture(game, self.get_text, self.font)
+
+        super().__init__(texture=texture)
 
 
 game = Game(theme=NightTheme)
