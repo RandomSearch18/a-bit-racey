@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Literal, Tuple
+from typing import Callable, Literal, Optional, Tuple
 import pygame
 import math
 import random
@@ -251,33 +251,46 @@ class PlainColorTexture(Texture):
 
 class TextTexture(Texture):
     def width(self) -> float:
-        return self.get_box().width
+        return self.current_rect.width
 
     def height(self) -> float:
-        return self.get_box().height
+        return self.current_rect.height
 
-    def get_box(self):
+    def render_text(self, start_x: float, start_y: float):
+        """Computes a surface and bounding rect for the text, but doesn't draw it to the screen"""
+        text_content = self.get_text()
+        text_surface = self.font.render(text_content, True, self.color)
+
+        text_rect = text_surface.get_rect()
+        text_rect.left = math.floor(start_x)
+        text_rect.top = math.floor(start_y)
+
+        return text_surface, text_rect
+
+    def get_rect(self, start_x: float, start_y: float) -> pygame.Rect:
         text = self.game.create_text(self.get_text(), self.font)
         rect: pygame.Rect = text[1]
 
-        return Box(rect.left, rect.top, rect.right, rect.bottom)
+        rect.topleft = (math.floor(start_x), math.floor(start_y))
+        return rect
 
     def __init__(
         self,
         game: Game,
         get_text: Callable[[], str],
         font: pygame.font.Font,
+        color: Optional[Tuple[float, float, float]] = None,
     ):
         self.game = game
         self.get_text = get_text
         self.font = font
+        self.color = color or self.game.theme.FOREGROUND
+        self.current_rect = self.render_text(0, 0)[1]
         super().__init__(self.width(), self.height())
 
-    def draw_at(self, start_x, start_y):
-        text_content = self.get_text()
-        text_surface, text_rect = self.game.create_text(text_content, self.font)
-
-        # text_rect.center = self.game.window_box().center()
+    def draw_at(self, start_x: float, start_y: float):
+        text_surface, text_rect = self.render_text(start_x, start_y)
+        self.current_rect = text_rect
         self.game.surface.blit(text_surface, text_rect)
 
 
