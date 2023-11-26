@@ -782,16 +782,20 @@ class Block(GameObject):
         return PixelsPoint(self.spawn_at_x, self.spawn_at_y)
 
     def calculate_size(self) -> Tuple[float, float]:
-        BASE_LENGTH = 50
-        height = BASE_LENGTH
+        INITIAL_SIZE = 50
+        height = INITIAL_SIZE
 
         # Don't let the blocks take up any more space than 1/2 of window width
         max_width = self.game.window_box().width * (1 / 2)
         # Increase block width by 10% * BASE_LENGTH for each doged block
         width_factor = 1 + (self.game.dodged_blocks * 0.1)
-        width = min([BASE_LENGTH * width_factor, max_width])
+        width = min([INITIAL_SIZE * width_factor, max_width])
 
         return width, height
+
+    def calculate_base_speed(self) -> float:
+        INITIAL_SPEED = 5
+        return INITIAL_SPEED
 
     def tick(self):
         pass
@@ -811,7 +815,7 @@ class Block(GameObject):
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
-        self.velocity = Velocity(self, 5)
+        self.velocity = Velocity(self, self.calculate_base_speed())
         self.velocity.shove_y()
 
 
