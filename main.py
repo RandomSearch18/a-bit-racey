@@ -341,6 +341,7 @@ class Game:
 
     def game_session(self):
         self.has_died = False
+        self.dodged_blocks = 0
 
         self.car = Car(game=self)
         self.objects.append(self.car)
@@ -354,6 +355,8 @@ class Game:
         )
         self.objects.append(self.fps_counter)
 
+        self.objects.append(ScoreCounter(game=self, spawn_point=PixelsPoint(5, 5)))
+
         while not self.has_died and not self.exited:
             for event in pygame.event.get():
                 self.on_event(event)
@@ -366,6 +369,7 @@ class Game:
                 self.objects.remove(active_block)
                 active_block = Block(game=self, spawn_at=-20)
                 self.objects.append(active_block)
+                self.dodged_blocks += 1
 
             # Update the objects
             for object in self.objects:
@@ -800,6 +804,26 @@ class FPSCounter(GameObject):
     def __init__(self, game: Game, spawn_point: PointSpecifier):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
+        self.spawn_point = lambda: spawn_point
+        texture = TextTexture(game, self.get_text, self.font)
+
+        super().__init__(texture=texture)
+
+
+class ScoreCounter(GameObject):
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.position)
+
+    def get_text(self) -> str:
+        score = self.game.dodged_blocks
+        return f"Score: {score}"
+
+    def __init__(self, game: Game, spawn_point: PointSpecifier):
+        self.game = game
+        self.font = pygame.font.Font("freesansbold.ttf", 14)
         self.spawn_point = lambda: spawn_point
         texture = TextTexture(game, self.get_text, self.font)
 
