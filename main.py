@@ -793,7 +793,9 @@ class Block(GameObject):
 
     def calculate_base_speed(self) -> float:
         INITIAL_SPEED = 5
-        return INITIAL_SPEED
+        # Gain a 1 pixel/tick speed increase for every 5 blocks doged
+        bonus_speed = self.game.dodged_blocks * 0.2
+        return INITIAL_SPEED + bonus_speed
 
     def tick(self):
         pass
