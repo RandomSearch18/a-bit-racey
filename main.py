@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from turtle import width
 from typing import Callable, Literal, Optional, Tuple
 import pygame
 
@@ -772,6 +773,18 @@ class Block(GameObject):
     def spawn_point(self) -> PointSpecifier:
         return PixelsPoint(self.spawn_at_x, self.spawn_at_y)
 
+    def calculate_size(self) -> Tuple[float, float]:
+        BASE_LENGTH = 50
+        height = BASE_LENGTH
+
+        # Don't let the blocks take up any more space than 1/2 of window width
+        max_width = self.game.window_box().width * (1 / 2)
+        # Increase block width by 10% * BASE_LENGTH for each doged block
+        width_factor = 1 + (self.game.dodged_blocks * 0.1)
+        width = min([BASE_LENGTH * width_factor, max_width])
+
+        return width, height
+
     def tick(self):
         pass
 
@@ -782,7 +795,11 @@ class Block(GameObject):
         self.game = game
         self.spawn_at_x = random.randrange(0, self.game.width())
         self.spawn_at_y = spawn_at
-        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50, 50)
+        width, height = self.calculate_size()
+        print("Block width:", width)
+        texture = PlainColorTexture(
+            self.game, self.game.theme.FOREGROUND, width, height
+        )
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
