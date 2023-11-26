@@ -62,7 +62,9 @@ class PointSpecifier:
     def move_down(self, pixels: float):
         raise NotImplementedError()
 
-    def move_to(self, absolute_coordinates: Tuple[float, float]):
+    def move_to(
+        self, absolute_coordinates: Tuple[float, float], width: float, height: float
+    ):
         raise NotImplementedError()
 
 
@@ -198,7 +200,7 @@ class Box:
 
         return (center_x, center_y)
 
-    def is_inside(self, outer_box: Box, allowed_margin=0) -> bool:
+    def is_inside(self, outer_box: Box, allowed_margin=0.0) -> bool:
         is_within_x = (
             outer_box.left - self.left <= allowed_margin
             and self.right - outer_box.right <= allowed_margin
@@ -309,7 +311,8 @@ class Game:
         large_font = pygame.font.Font("freesansbold.ttf", 115)
         text_surface, text_rect = self.create_text(text, large_font)
 
-        text_rect.center = self.window_box().center()
+        window_center_x, window_center_y = self.window_box().center()
+        text_rect.center = math.floor(window_center_x), math.floor(window_center_y)
         self.surface.blit(text_surface, text_rect)
         self.update_display()
 
@@ -389,7 +392,7 @@ class Texture:
 
 
 class PlainColorTexture(Texture):
-    def __init__(self, game: Game, color: Tuple[float, float, float], width, height):
+    def __init__(self, game: Game, color: Tuple[int, int, int], width, height):
         self.game = game
         self.color = color
         super().__init__(width, height)
@@ -432,9 +435,9 @@ class TextTexture(Texture):
     def __init__(
         self,
         game: Game,
-        get_content: Callable[[], str | Tuple[str, Tuple[float, float, float]]],
+        get_content: Callable[[], str | Tuple[str, Tuple[int, int, int]]],
         font: pygame.font.Font,
-        get_color: Optional[Callable[[], Tuple[float, float, float]]] = None,
+        get_color: Optional[Callable[[], Tuple[int, int, int]]] = None,
     ):
         self.game = game
         self._get_content = get_content
@@ -549,7 +552,7 @@ class GameObject:
 
         return new_center_x, new_center_y
 
-    def is_within_window(self, allowed_margin=0):
+    def is_within_window(self, allowed_margin=0.0):
         window = self.game.window_box()
         return self.collision_box().is_inside(window, allowed_margin)
 
