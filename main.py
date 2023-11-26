@@ -45,7 +45,9 @@ class Corner(Enum):
 
 
 class PointSpecifier:
-    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
         raise NotImplementedError()
 
     def move_left(self, pixels: float):
@@ -70,7 +72,9 @@ class PixelsPoint(PointSpecifier):
         self.y = y
         self.relative_to = relative_to
 
-    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
         outer_width = game.window_box().width
         outer_height = game.window_box().height
         multiplier_x, multiplier_y = self.relative_to.value
@@ -140,6 +144,25 @@ class PixelsPoint(PointSpecifier):
         new_y = -y_difference if multiplier_y else +y_difference
 
         self.x, self.y = new_x, new_y
+
+
+class PercentagePoint(PointSpecifier):
+    def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
+        assert 0 <= x < 1
+        assert 0 <= y < 1
+        self.x = x
+        self.y = y
+        self.relative_to = relative_to
+
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
+        outer_box = game.window_box()
+        x_pixels = self.x * outer_box.width
+        y_pixels = self.y * outer_box.height
+
+        pixels_point = PixelsPoint(x_pixels, y_pixels, self.relative_to)
+        return pixels_point.resolve(game, width, height)
 
 
 class Box:
@@ -251,8 +274,12 @@ class Game:
                 callback = self.key_up_callbacks[event.key]
                 callback()
         elif event.type == pygame.FINGERDOWN:
-            # self.
-            pass
+            target_point = PercentagePoint(event.x, event.y)
+            self.car.movement_targets.append(target_point)
+        elif event.type == pygame.FINGERUP:
+            if not self.car.movement_targets:
+                print("Ignoring keypress from finger", event.finger_id)
+            self.car.movement_targets.pop(0)
 
     def trigger_key_action(self, action: str, event: pygame.event.Event):
         if action not in self.key_action_callbacks:
@@ -641,6 +668,25 @@ class Car(GameObject):
         if pressed_direction == "RIGHT":
             self.velocity.x = 5
 
+    def move_towards_movement_target(self):
+        if not self.movement_targets:
+            return
+
+        # If a movement key is currently being pressed, that takes priority
+        if self.pressed_directions:
+            return
+
+        # Take the last-added movement target since it corresponds to the last-touched point
+        target_coordinates = self.movement_targets[-1].resolve(game)
+        our_coordinates = self.collision_box().center()
+
+        # Calculate if we have to move left or right to get to the target position,
+        # and then move in that direction
+        if target_coordinates[0] > our_coordinates[0]:
+            self.velocity.x = 5
+        elif target_coordinates[0] < our_coordinates[0]:
+            self.velocity.x = -5
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
@@ -650,9 +696,11 @@ class Car(GameObject):
 
         self.velocity = Velocity(self)
         self.pressed_directions = []
+        self.movement_targets: list[PointSpecifier] = []
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
         self.tick_tasks.append(self.set_velocity_from_keypresses)
+        self.tick_tasks.append(self.move_towards_movement_target)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
