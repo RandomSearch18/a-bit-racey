@@ -2,6 +2,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Callable, Literal, Optional, Tuple
 import pygame
+
+# import pygame._sdl2 as pygame_sdl2
 import math
 import random
 from pathlib import Path
@@ -248,6 +250,9 @@ class Game:
             if event.key in self.key_up_callbacks:
                 callback = self.key_up_callbacks[event.key]
                 callback()
+        elif event.type == pygame.FINGERDOWN:
+            # self.
+            pass
 
     def trigger_key_action(self, action: str, event: pygame.event.Event):
         if action not in self.key_action_callbacks:
@@ -605,6 +610,10 @@ class Car(GameObject):
     def spawn_point(self) -> PointSpecifier:
         return PixelsPoint(self.calculate_starting_x(), self.calculate_starting_y())
 
+    def check_touch_input(self):
+        # pygame_sdl2
+        pass
+
     def check_collision_with_window_edge(self):
         if not self.is_within_window():
             self.game.trigger_crash()
@@ -620,6 +629,18 @@ class Car(GameObject):
                 continue
             self.game.trigger_crash()
 
+    def set_velocity_from_keypresses(self):
+        if len(self.pressed_directions) == 0:
+            self.velocity.x = 0
+            return
+
+        # Ensures the last-pressed key takes priority
+        pressed_direction = self.pressed_directions[-1]
+        if pressed_direction == "LEFT":
+            self.velocity.x = -5
+        if pressed_direction == "RIGHT":
+            self.velocity.x = 5
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
@@ -628,28 +649,30 @@ class Car(GameObject):
         )
 
         self.velocity = Velocity(self)
+        self.pressed_directions = []
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
+        self.tick_tasks.append(self.set_velocity_from_keypresses)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
         def start_moving_left(event):
             def undo(event):
-                self.velocity.x = 0
+                self.pressed_directions.remove("LEFT")
                 print("Left stopped")
 
-            self.velocity.x = -5
+            self.pressed_directions.append("LEFT")
             print("Left started")
             return undo
 
         @game.on_key_action("move.right")
         def start_moving_right(event):
             def undo(event):
-                self.velocity.x = 0
-                print("Right stopped")
+                self.pressed_directions.remove("RIGHT")
+                print("RIGHT stopped")
 
-            self.velocity.x = 5
-            print("Right started")
+            self.pressed_directions.append("RIGHT")
+            print("RIGHT started")
             return undo
 
     def draw(self):
