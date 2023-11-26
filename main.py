@@ -283,12 +283,12 @@ class Game:
                 callback()
         elif event.type == pygame.FINGERDOWN:
             target_point = PercentagePoint(event.x, event.y)
-            self.car.movement_targets.append(target_point)
+            self.car.movement_targets[event.finger_id] = target_point
         elif event.type == pygame.FINGERUP:
-            if not self.car.movement_targets:
-                print("Ignoring keypress from finger", event.finger_id)
-                return
-            self.car.movement_targets.pop(0)
+            try:
+                self.car.movement_targets.pop(event.finger_id)
+            except KeyError:
+                print(f"Ignoring keypress from #{event.finger_id} on #{event.touch_id}")
 
     def trigger_key_action(self, action: str, event: pygame.event.Event):
         if action not in self.key_action_callbacks:
@@ -690,7 +690,8 @@ class Car(GameObject):
             return
 
         # Take the last-added movement target since it corresponds to the last-touched point
-        target_coordinates = self.movement_targets[-1].resolve(game)
+        last_touched_finger = list(self.movement_targets.keys())[-1]
+        target_coordinates = self.movement_targets[last_touched_finger].resolve(game)
         our_coordinates = self.collision_box().center()
 
         # Calculate if we have to move left or right to get to the target position,
@@ -709,7 +710,7 @@ class Car(GameObject):
 
         self.velocity = Velocity(self)
         self.pressed_directions = []
-        self.movement_targets: list[PointSpecifier] = []
+        self.movement_targets: dict[int, PointSpecifier] = {}
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
         self.tick_tasks.append(self.set_velocity_from_keypresses)
