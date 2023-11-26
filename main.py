@@ -733,6 +733,12 @@ class Car(GameObject):
         elif pixels_difference < 0:
             self.velocity.shove_x(-1)
 
+    def update_base_speed(self):
+        # Gain a 1 pixel/tick speed increase for every 10 blocks doged
+        bonus_speed = self.game.dodged_blocks * 0.1
+        # bonus_speed = self.game.dodged_blocks * 5
+        self.velocity.base_speed = self.initial_base_speed + bonus_speed
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
@@ -740,13 +746,15 @@ class Car(GameObject):
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
 
-        self.velocity = Velocity(self, 5)
+        self.initial_base_speed = 5
+        self.velocity = Velocity(self, self.initial_base_speed)
         self.pressed_directions = []
         self.movement_targets: dict[int, PointSpecifier] = {}
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
         self.tick_tasks.append(self.set_velocity_from_keypresses)
         self.tick_tasks.append(self.move_towards_movement_target)
+        self.tick_tasks.append(self.update_base_speed)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
