@@ -710,6 +710,12 @@ class Car(GameObject):
         target_coordinates = self.movement_targets[last_touched_finger].resolve(game)
         our_coordinates = self.collision_box().center()
 
+        # If the car is very close to the touch point, move it there directly
+        pixels_difference = target_coordinates[0] - our_coordinates[0]
+        if pixels_difference <= self.velocity.x:
+            self.position.move_to(target_coordinates, self.width(), self.height())
+            return
+
         # Calculate if we have to move left or right to get to the target position,
         # and then move in that direction
         if target_coordinates[0] > our_coordinates[0]:
