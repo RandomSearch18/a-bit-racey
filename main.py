@@ -273,6 +273,8 @@ class Game:
                     continue
                 object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
+
+        # Keyboard input
         elif event.type == pygame.KEYDOWN:
             if event.key in self.keybinds:
                 action = self.keybinds[event.key]
@@ -281,7 +283,12 @@ class Game:
             if event.key in self.key_up_callbacks:
                 callback = self.key_up_callbacks[event.key]
                 callback()
+
+        # Touch input
         elif event.type == pygame.FINGERDOWN:
+            target_point = PercentagePoint(event.x, event.y)
+            self.car.movement_targets[event.finger_id] = target_point
+        elif event.type == pygame.FINGERMOTION:
             target_point = PercentagePoint(event.x, event.y)
             self.car.movement_targets[event.finger_id] = target_point
         elif event.type == pygame.FINGERUP:
