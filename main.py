@@ -618,13 +618,22 @@ class Velocity:
         self.object.position.move_right(x_movement)
         self.object.position.move_down(y_movement)
 
-    def __init__(self, game_object: GameObject):
+    def __init__(self, game_object: GameObject, base_speed: float):
         # Magnitudes of velocity, measured in pixels/tick
         self.x = 0
         self.y = 0
 
+        # The speed that the object will travel at by default (pixels/tick)
+        self.base_speed = base_speed
+
         self.object = game_object
         self.object.tick_tasks.append(self.on_tick)
+
+    def shove_x(self, multiplier=1.0):
+        self.x = self.base_speed * multiplier
+
+    def shove_y(self, multiplier=1.0):
+        self.y = self.base_speed * multiplier
 
 
 class Car(GameObject):
@@ -684,9 +693,9 @@ class Car(GameObject):
         # Ensures the last-pressed key takes priority
         pressed_direction = self.pressed_directions[-1]
         if pressed_direction == "LEFT":
-            self.velocity.x = -5
+            self.velocity.shove_x(-1)
         if pressed_direction == "RIGHT":
-            self.velocity.x = 5
+            self.velocity.shove_x(+1)
 
     def move_towards_movement_target(self):
         if not self.movement_targets:
@@ -704,9 +713,9 @@ class Car(GameObject):
         # Calculate if we have to move left or right to get to the target position,
         # and then move in that direction
         if target_coordinates[0] > our_coordinates[0]:
-            self.velocity.x = 5
+            self.velocity.shove_x(+1)
         elif target_coordinates[0] < our_coordinates[0]:
-            self.velocity.x = -5
+            self.velocity.shove_x(-1)
 
     def __init__(self, game: Game):
         self.game = game
@@ -715,7 +724,7 @@ class Car(GameObject):
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
 
-        self.velocity = Velocity(self)
+        self.velocity = Velocity(self, 5)
         self.pressed_directions = []
         self.movement_targets: dict[int, PointSpecifier] = {}
         self.tick_tasks.append(self.check_collision_with_window_edge)
@@ -762,8 +771,8 @@ class Block(GameObject):
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
-        self.velocity = Velocity(self)
-        self.velocity.y = 5
+        self.velocity = Velocity(self, 5)
+        self.velocity.shove_y()
 
 
 class FPSCounter(GameObject):
