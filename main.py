@@ -713,7 +713,10 @@ class Car(GameObject):
         # If the car is very close to the touch point, move it there directly
         pixels_difference = target_coordinates[0] - our_coordinates[0]
         if pixels_difference <= self.velocity.x:
-            self.position.move_to(target_coordinates, self.width(), self.height())
+            _, old_y = self.coordinates()
+            move_to_x = target_coordinates[0] - self.width() / 2 # Convert center pos to left-edge pos
+            new_coordinates = move_to_x, old_y
+            self.position.move_to(new_coordinates, self.width(), self.height())
             return
 
         # Calculate if we have to move left or right to get to the target position,
