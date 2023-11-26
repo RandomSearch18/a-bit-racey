@@ -279,6 +279,7 @@ class Game:
         elif event.type == pygame.FINGERUP:
             if not self.car.movement_targets:
                 print("Ignoring keypress from finger", event.finger_id)
+                return
             self.car.movement_targets.pop(0)
 
     def trigger_key_action(self, action: str, event: pygame.event.Event):
