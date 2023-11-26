@@ -2,6 +2,8 @@ from __future__ import annotations
 from enum import Enum
 from typing import Callable, Literal, Optional, Tuple
 import pygame
+
+# import pygame._sdl2 as pygame_sdl2
 import math
 import random
 from pathlib import Path
@@ -43,7 +45,9 @@ class Corner(Enum):
 
 
 class PointSpecifier:
-    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
         raise NotImplementedError()
 
     def move_left(self, pixels: float):
@@ -58,7 +62,9 @@ class PointSpecifier:
     def move_down(self, pixels: float):
         raise NotImplementedError()
 
-    def move_to(self, absolute_coordinates: Tuple[float, float]):
+    def move_to(
+        self, absolute_coordinates: Tuple[float, float], width: float, height: float
+    ):
         raise NotImplementedError()
 
 
@@ -68,7 +74,9 @@ class PixelsPoint(PointSpecifier):
         self.y = y
         self.relative_to = relative_to
 
-    def resolve(self, game: Game, width: float, height: float) -> Tuple[float, float]:
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
         outer_width = game.window_box().width
         outer_height = game.window_box().height
         multiplier_x, multiplier_y = self.relative_to.value
@@ -140,6 +148,25 @@ class PixelsPoint(PointSpecifier):
         self.x, self.y = new_x, new_y
 
 
+class PercentagePoint(PointSpecifier):
+    def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
+        assert 0 <= x < 1
+        assert 0 <= y < 1
+        self.x = x
+        self.y = y
+        self.relative_to = relative_to
+
+    def resolve(
+        self, game: Game, width: float = 0, height: float = 0
+    ) -> Tuple[float, float]:
+        outer_box = game.window_box()
+        x_pixels = self.x * outer_box.width
+        y_pixels = self.y * outer_box.height
+
+        pixels_point = PixelsPoint(x_pixels, y_pixels, self.relative_to)
+        return pixels_point.resolve(game, width, height)
+
+
 class Box:
     def __init__(self, x1: float, y1: float, x2: float, y2: float):
         self.x1 = x1
@@ -173,10 +200,16 @@ class Box:
 
         return (center_x, center_y)
 
-    def is_inside(self, other_box: Box) -> bool:
-        is_within_x = self.left >= other_box.left and self.right <= other_box.right
+    def is_inside(self, outer_box: Box, allowed_margin=0.0) -> bool:
+        is_within_x = (
+            outer_box.left - self.left <= allowed_margin
+            and self.right - outer_box.right <= allowed_margin
+        )
 
-        is_within_y = self.top >= other_box.top and self.bottom <= other_box.bottom
+        is_within_y = (
+            outer_box.top - self.top <= allowed_margin
+            and self.bottom - outer_box.bottom <= allowed_margin
+        )
 
         return is_within_x and is_within_y
 
@@ -240,6 +273,8 @@ class Game:
                     continue
                 object.window_resize_handler.handle_window_resize(event)
             self.old_window_dimensions = (self.width(), self.height())
+
+        # Keyboard input
         elif event.type == pygame.KEYDOWN:
             if event.key in self.keybinds:
                 action = self.keybinds[event.key]
@@ -248,6 +283,19 @@ class Game:
             if event.key in self.key_up_callbacks:
                 callback = self.key_up_callbacks[event.key]
                 callback()
+
+        # Touch input
+        elif event.type == pygame.FINGERDOWN:
+            target_point = PercentagePoint(event.x, event.y)
+            self.car.movement_targets[event.finger_id] = target_point
+        elif event.type == pygame.FINGERMOTION:
+            target_point = PercentagePoint(event.x, event.y)
+            self.car.movement_targets[event.finger_id] = target_point
+        elif event.type == pygame.FINGERUP:
+            try:
+                self.car.movement_targets.pop(event.finger_id)
+            except KeyError:
+                print(f"Ignoring keypress from #{event.finger_id} on #{event.touch_id}")
 
     def trigger_key_action(self, action: str, event: pygame.event.Event):
         if action not in self.key_action_callbacks:
@@ -270,7 +318,8 @@ class Game:
         large_font = pygame.font.Font("freesansbold.ttf", 115)
         text_surface, text_rect = self.create_text(text, large_font)
 
-        text_rect.center = self.window_box().center()
+        window_center_x, window_center_y = self.window_box().center()
+        text_rect.center = math.floor(window_center_x), math.floor(window_center_y)
         self.surface.blit(text_surface, text_rect)
         self.update_display()
 
@@ -350,7 +399,7 @@ class Texture:
 
 
 class PlainColorTexture(Texture):
-    def __init__(self, game: Game, color: Tuple[float, float, float], width, height):
+    def __init__(self, game: Game, color: Tuple[int, int, int], width, height):
         self.game = game
         self.color = color
         super().__init__(width, height)
@@ -393,9 +442,9 @@ class TextTexture(Texture):
     def __init__(
         self,
         game: Game,
-        get_content: Callable[[], str | Tuple[str, Tuple[float, float, float]]],
+        get_content: Callable[[], str | Tuple[str, Tuple[int, int, int]]],
         font: pygame.font.Font,
-        get_color: Optional[Callable[[], Tuple[float, float, float]]] = None,
+        get_color: Optional[Callable[[], Tuple[int, int, int]]] = None,
     ):
         self.game = game
         self._get_content = get_content
@@ -510,9 +559,9 @@ class GameObject:
 
         return new_center_x, new_center_y
 
-    def is_within_window(self):
+    def is_within_window(self, allowed_margin=0.0):
         window = self.game.window_box()
-        return self.collision_box().is_inside(window)
+        return self.collision_box().is_inside(window, allowed_margin)
 
     def is_outside_window(self):
         window = self.game.window_box()
@@ -569,13 +618,22 @@ class Velocity:
         self.object.position.move_right(x_movement)
         self.object.position.move_down(y_movement)
 
-    def __init__(self, game_object: GameObject):
+    def __init__(self, game_object: GameObject, base_speed: float):
         # Magnitudes of velocity, measured in pixels/tick
         self.x = 0
         self.y = 0
 
+        # The speed that the object will travel at by default (pixels/tick)
+        self.base_speed = base_speed
+
         self.object = game_object
         self.object.tick_tasks.append(self.on_tick)
+
+    def shove_x(self, multiplier=1.0):
+        self.x = self.base_speed * multiplier
+
+    def shove_y(self, multiplier=1.0):
+        self.y = self.base_speed * multiplier
 
 
 class Car(GameObject):
@@ -605,8 +663,15 @@ class Car(GameObject):
     def spawn_point(self) -> PointSpecifier:
         return PixelsPoint(self.calculate_starting_x(), self.calculate_starting_y())
 
+    def check_touch_input(self):
+        # pygame_sdl2
+        pass
+
     def check_collision_with_window_edge(self):
-        if not self.is_within_window():
+        # Allow up to 1/2 of the car to go off the edge before it counts as a crash
+        allowed_margin = self.width() / 2
+
+        if not self.is_within_window(allowed_margin):
             self.game.trigger_crash()
 
     def check_collision_with_other_objects(self):
@@ -620,6 +685,49 @@ class Car(GameObject):
                 continue
             self.game.trigger_crash()
 
+    def set_velocity_from_keypresses(self):
+        if len(self.pressed_directions) == 0:
+            self.velocity.x = 0
+            return
+
+        # Ensures the last-pressed key takes priority
+        pressed_direction = self.pressed_directions[-1]
+        if pressed_direction == "LEFT":
+            self.velocity.shove_x(-1)
+        if pressed_direction == "RIGHT":
+            self.velocity.shove_x(+1)
+
+    def move_towards_movement_target(self):
+        if not self.movement_targets:
+            return
+
+        # If a movement key is currently being pressed, that takes priority
+        if self.pressed_directions:
+            return
+
+        # Take the last-added movement target since it corresponds to the last-touched point
+        last_touched_finger = list(self.movement_targets.keys())[-1]
+        target_coordinates = self.movement_targets[last_touched_finger].resolve(game)
+        our_coordinates = self.collision_box().center()
+
+        # If the car is very close to the touch point, move it there directly
+        pixels_difference = target_coordinates[0] - our_coordinates[0]
+        if abs(pixels_difference) <= self.velocity.base_speed:
+            _, old_y = self.coordinates()
+            # Convert center pos to left-edge pos:
+            move_to_x = target_coordinates[0] - self.width() / 2
+
+            new_coordinates = move_to_x, old_y
+            self.position.move_to(new_coordinates, self.width(), self.height())
+            return
+
+        # Calculate if we have to move left or right to get to the target position,
+        # and then move in that direction
+        if pixels_difference > 0:
+            self.velocity.shove_x(+1)
+        elif pixels_difference < 0:
+            self.velocity.shove_x(-1)
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
@@ -627,29 +735,29 @@ class Car(GameObject):
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
 
-        self.velocity = Velocity(self)
+        self.velocity = Velocity(self, 5)
+        self.pressed_directions = []
+        self.movement_targets: dict[int, PointSpecifier] = {}
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
+        self.tick_tasks.append(self.set_velocity_from_keypresses)
+        self.tick_tasks.append(self.move_towards_movement_target)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
         def start_moving_left(event):
             def undo(event):
-                self.velocity.x = 0
-                print("Left stopped")
+                self.pressed_directions.remove("LEFT")
 
-            self.velocity.x = -5
-            print("Left started")
+            self.pressed_directions.append("LEFT")
             return undo
 
         @game.on_key_action("move.right")
         def start_moving_right(event):
             def undo(event):
-                self.velocity.x = 0
-                print("Right stopped")
+                self.pressed_directions.remove("RIGHT")
 
-            self.velocity.x = 5
-            print("Right started")
+            self.pressed_directions.append("RIGHT")
             return undo
 
     def draw(self):
@@ -674,8 +782,8 @@ class Block(GameObject):
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
-        self.velocity = Velocity(self)
-        self.velocity.y = 5
+        self.velocity = Velocity(self, 5)
+        self.velocity.shove_y()
 
 
 class FPSCounter(GameObject):
