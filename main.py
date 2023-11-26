@@ -151,8 +151,6 @@ class PixelsPoint(PointSpecifier):
 
 class PercentagePoint(PointSpecifier):
     def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
-        assert 0 <= x < 1
-        assert 0 <= y < 1
         self.x = x
         self.y = y
         self.relative_to = relative_to
