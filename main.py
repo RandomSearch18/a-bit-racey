@@ -720,20 +720,16 @@ class Car(GameObject):
         def start_moving_left(event):
             def undo(event):
                 self.pressed_directions.remove("LEFT")
-                print("Left stopped")
 
             self.pressed_directions.append("LEFT")
-            print("Left started")
             return undo
 
         @game.on_key_action("move.right")
         def start_moving_right(event):
             def undo(event):
                 self.pressed_directions.remove("RIGHT")
-                print("RIGHT stopped")
 
             self.pressed_directions.append("RIGHT")
-            print("RIGHT started")
             return undo
 
     def draw(self):
