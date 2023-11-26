@@ -10,6 +10,11 @@ Start by cloning this repository to a folder of your choice. Commands in this gu
 
 In general, you'll need Python 3.8 or above, and the `pygame` Python package available. For the platforms that I've tested the game on, there are some specific instructions below.
 
+### Arch Linux
+
+1. Install the `python` and `python-pygame` packages, e.g. by running `sudo pacman -S python python-pygame`
+2. Run the game: `python3 main.py`
+
 ### PostmarketOS
 
 Note: This should also work for Alpine Linux in general, although you may have to replace `sudo` with whatever tool your system uses for elevating permissions, e.g. `doas`.
@@ -23,7 +28,7 @@ $ python3 main.py
 
 These instructions should also work on Ubuntu 20.04 LTS, which Zorin OS is based on.
 
-```sh
+```bash
 $ sudo apt install python3 python3-pygame
 $ python3 main.py
 ```
