@@ -198,10 +198,16 @@ class Box:
 
         return (center_x, center_y)
 
-    def is_inside(self, other_box: Box) -> bool:
-        is_within_x = self.left >= other_box.left and self.right <= other_box.right
+    def is_inside(self, outer_box: Box, allowed_margin=0) -> bool:
+        is_within_x = (
+            outer_box.left - self.left <= allowed_margin
+            and self.right - outer_box.right <= allowed_margin
+        )
 
-        is_within_y = self.top >= other_box.top and self.bottom <= other_box.bottom
+        is_within_y = (
+            outer_box.top - self.top <= allowed_margin
+            and self.bottom - outer_box.bottom <= allowed_margin
+        )
 
         return is_within_x and is_within_y
 
@@ -543,9 +549,9 @@ class GameObject:
 
         return new_center_x, new_center_y
 
-    def is_within_window(self):
+    def is_within_window(self, allowed_margin=0):
         window = self.game.window_box()
-        return self.collision_box().is_inside(window)
+        return self.collision_box().is_inside(window, allowed_margin)
 
     def is_outside_window(self):
         window = self.game.window_box()
@@ -643,7 +649,10 @@ class Car(GameObject):
         pass
 
     def check_collision_with_window_edge(self):
-        if not self.is_within_window():
+        # Allow up to 1/2 of the car to go off the edge before it counts as a crash
+        allowed_margin = self.width() / 2
+
+        if not self.is_within_window(allowed_margin):
             self.game.trigger_crash()
 
     def check_collision_with_other_objects(self):
