@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from turtle import width
 from typing import Callable, Literal, Optional, Tuple
 import pygame
 
@@ -150,8 +151,6 @@ class PixelsPoint(PointSpecifier):
 
 class PercentagePoint(PointSpecifier):
     def __init__(self, x: float, y: float, relative_to: Corner = Corner.TOP_LEFT):
-        assert 0 <= x < 1
-        assert 0 <= y < 1
         self.x = x
         self.y = y
         self.relative_to = relative_to
@@ -341,6 +340,7 @@ class Game:
 
     def game_session(self):
         self.has_died = False
+        self.dodged_blocks = 0
 
         self.car = Car(game=self)
         self.objects.append(self.car)
@@ -354,6 +354,8 @@ class Game:
         )
         self.objects.append(self.fps_counter)
 
+        self.objects.append(ScoreCounter(game=self, spawn_point=PixelsPoint(5, 5)))
+
         while not self.has_died and not self.exited:
             for event in pygame.event.get():
                 self.on_event(event)
@@ -366,6 +368,7 @@ class Game:
                 self.objects.remove(active_block)
                 active_block = Block(game=self, spawn_at=-20)
                 self.objects.append(active_block)
+                self.dodged_blocks += 1
 
             # Update the objects
             for object in self.objects:
@@ -728,6 +731,12 @@ class Car(GameObject):
         elif pixels_difference < 0:
             self.velocity.shove_x(-1)
 
+    def update_base_speed(self):
+        # Gain a 1 pixel/tick speed increase for every 10 blocks doged
+        bonus_speed = self.game.dodged_blocks * 0.1
+        # bonus_speed = self.game.dodged_blocks * 5
+        self.velocity.base_speed = self.initial_base_speed + bonus_speed
+
     def __init__(self, game: Game):
         self.game = game
         texture = ImageTexture(game, self.get_texture_image())
@@ -735,13 +744,15 @@ class Car(GameObject):
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
 
-        self.velocity = Velocity(self, 5)
+        self.initial_base_speed = 5
+        self.velocity = Velocity(self, self.initial_base_speed)
         self.pressed_directions = []
         self.movement_targets: dict[int, PointSpecifier] = {}
         self.tick_tasks.append(self.check_collision_with_window_edge)
         self.tick_tasks.append(self.check_collision_with_other_objects)
         self.tick_tasks.append(self.set_velocity_from_keypresses)
         self.tick_tasks.append(self.move_towards_movement_target)
+        self.tick_tasks.append(self.update_base_speed)
 
         # Bind movement callbacks to the appropiate key actions
         @game.on_key_action("move.left")
@@ -768,6 +779,24 @@ class Block(GameObject):
     def spawn_point(self) -> PointSpecifier:
         return PixelsPoint(self.spawn_at_x, self.spawn_at_y)
 
+    def calculate_size(self) -> Tuple[float, float]:
+        INITIAL_SIZE = 50
+        height = INITIAL_SIZE
+
+        # Don't let the blocks take up any more space than 1/2 of window width
+        max_width = self.game.window_box().width * (1 / 2)
+        # Increase block width by 10% * BASE_LENGTH for each doged block
+        width_factor = 1 + (self.game.dodged_blocks * 0.1)
+        width = min([INITIAL_SIZE * width_factor, max_width])
+
+        return width, height
+
+    def calculate_base_speed(self) -> float:
+        INITIAL_SPEED = 5
+        # Gain a 1 pixel/tick speed increase for every 5 blocks doged
+        bonus_speed = self.game.dodged_blocks * 0.2
+        return INITIAL_SPEED + bonus_speed
+
     def tick(self):
         pass
 
@@ -778,11 +807,15 @@ class Block(GameObject):
         self.game = game
         self.spawn_at_x = random.randrange(0, self.game.width())
         self.spawn_at_y = spawn_at
-        texture = PlainColorTexture(self.game, self.game.theme.FOREGROUND, 50, 50)
+        width, height = self.calculate_size()
+        print("Block width:", width)
+        texture = PlainColorTexture(
+            self.game, self.game.theme.FOREGROUND, width, height
+        )
         super().__init__(
             texture=texture, window_resize_handler=LinearPositionScaling(self)
         )
-        self.velocity = Velocity(self, 5)
+        self.velocity = Velocity(self, self.calculate_base_speed())
         self.velocity.shove_y()
 
 
@@ -800,6 +833,26 @@ class FPSCounter(GameObject):
     def __init__(self, game: Game, spawn_point: PointSpecifier):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
+        self.spawn_point = lambda: spawn_point
+        texture = TextTexture(game, self.get_text, self.font)
+
+        super().__init__(texture=texture)
+
+
+class ScoreCounter(GameObject):
+    def tick(self):
+        pass
+
+    def draw(self):
+        self.texture.draw_at(self.position)
+
+    def get_text(self) -> str:
+        score = self.game.dodged_blocks
+        return f"Score: {score}"
+
+    def __init__(self, game: Game, spawn_point: PointSpecifier):
+        self.game = game
+        self.font = pygame.font.Font("freesansbold.ttf", 14)
         self.spawn_point = lambda: spawn_point
         texture = TextTexture(game, self.get_text, self.font)
 
