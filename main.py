@@ -831,9 +831,9 @@ class FPSCounter(GameObject):
 
     def calculate_color(self, fps: float) -> Tuple[int, int, int]:
         color = self.game.theme
-        if fps < 30:
+        if fps < game.MAX_FPS / 2:
             return color.FOREGROUND_BAD
-        if fps < 60:
+        if fps < game.MAX_FPS:
             return color.FOREGROUND_WARNING
         return color.FOREGROUND
 
