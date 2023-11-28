@@ -19,7 +19,8 @@ class Asset:
 class Color:
     BLACK = (0, 0, 0)
     WHITE = (255, 255, 255)
-    RED = (255, 255, 255)
+    RED = (255, 0, 0)
+    ORANGE = (255, 128, 0)
     # From color palette at https://colorcodes.io/gray/asphalt-gray-color-codes/
     ASPHALT = (38, 40, 51)
 
@@ -29,6 +30,7 @@ class DefaultTheme:
     BACKGROUND = Color.WHITE
     FOREGROUND = Color.BLACK
     FOREGROUND_BAD = Color.RED
+    FOREGROUND_WARNING = Color.ORANGE
 
 
 class NightTheme(DefaultTheme):
@@ -36,6 +38,7 @@ class NightTheme(DefaultTheme):
     BACKGROUND = Color.ASPHALT
     FOREGROUND = Color.WHITE
     FOREGROUND_BAD = Color.RED
+    FOREGROUND_WARNING = Color.ORANGE
 
 
 class Corner(Enum):
@@ -826,15 +829,24 @@ class FPSCounter(GameObject):
     def draw(self):
         self.texture.draw_at(self.position)
 
-    def get_text(self) -> str:
+    def calculate_color(self, fps: float) -> Tuple[int, int, int]:
+        color = self.game.theme
+        if fps < game.MAX_FPS / 2:
+            return color.FOREGROUND_BAD
+        if fps < game.MAX_FPS:
+            return color.FOREGROUND_WARNING
+        return color.FOREGROUND
+
+    def get_content(self) -> Tuple[str, Tuple[int, int, int]]:
         fps = self.game.clock.get_fps()
-        return f"{fps:.0f} FPS"
+        color = self.calculate_color(fps)
+        return f"{fps:.0f} FPS", color
 
     def __init__(self, game: Game, spawn_point: PointSpecifier):
         self.game = game
         self.font = pygame.font.Font("freesansbold.ttf", 12)
         self.spawn_point = lambda: spawn_point
-        texture = TextTexture(game, self.get_text, self.font)
+        texture = TextTexture(game, self.get_content, self.font)
 
         super().__init__(texture=texture)
 
