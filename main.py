@@ -1,6 +1,5 @@
 from __future__ import annotations
 from enum import Enum
-from turtle import width
 from typing import Callable, Literal, Optional, Tuple
 import pygame
 
