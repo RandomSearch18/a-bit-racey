@@ -362,9 +362,6 @@ class Game:
             for event in pygame.event.get():
                 self.on_event(event)
 
-            # Reset the surface
-            self.surface.fill(self.background_color)
-
             # Spawn a new block if the old one has passed the bottom screen edge
             if active_block.coordinates()[1] > self.height():
                 self.objects.remove(active_block)
@@ -375,6 +372,12 @@ class Game:
             # Update the objects
             for object in self.objects:
                 object.run_tick_tasks()
+
+            # Reset the surface
+            self.surface.fill(self.background_color)
+
+            # Draw the objects
+            for object in self.objects:
                 object.draw()
 
             self.update_display()
@@ -677,6 +680,7 @@ class Car(GameObject):
         allowed_margin = self.width() / 2
 
         if not self.is_within_window(allowed_margin):
+            print("Triggering crash")
             self.game.trigger_crash()
 
     def check_collision_with_other_objects(self):
